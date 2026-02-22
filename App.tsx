@@ -15,6 +15,7 @@ import FinanceView from './components/FinanceView';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Onboarding from './components/Onboarding';
 import { db } from './db';
+import { syncFromSupabase } from './sync';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('add');
@@ -65,8 +66,11 @@ const App: React.FC = () => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
+      if (event === 'SIGNED_IN' && session) {
+        await syncFromSupabase();
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -100,7 +104,20 @@ const App: React.FC = () => {
     );
   }
 
+  const clearLocalData = async () => {
+    await Promise.all([
+      db.expenses.clear(),
+      db.incomes.clear(),
+      db.categories.clear(),
+      db.incomeCategories.clear(),
+      db.recurringExpenses.clear(),
+      db.debts.clear(),
+    ]);
+    localStorage.removeItem('macins_onboarding_done');
+  };
+
   const handleLogout = async () => {
+    await clearLocalData();
     if (isDemoMode) {
       setIsDemoMode(false);
       setSession(null);

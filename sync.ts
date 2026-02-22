@@ -6,6 +6,16 @@ export const syncFromSupabase = async () => {
     if (!session) return;
 
     try {
+        // Clear local data first to avoid mixing accounts
+        await Promise.all([
+            db.expenses.clear(),
+            db.incomes.clear(),
+            db.categories.clear(),
+            db.incomeCategories.clear(),
+            db.recurringExpenses.clear(),
+            db.debts.clear(),
+        ]);
+
         // 1. Categories
         const { data: categories } = await supabase.from('categories').select('*');
         if (categories) await db.categories.bulkPut(categories);
