@@ -7,6 +7,7 @@ import { Category } from '../types';
 import {
   DndContext,
   closestCenter,
+  KeyboardSensor,
   PointerSensor,
   TouchSensor,
   useSensor,
@@ -15,6 +16,7 @@ import {
 } from '@dnd-kit/core';
 import {
   SortableContext,
+  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   useSortable,
   arrayMove,
@@ -74,11 +76,13 @@ const SortableCategoryRow: React.FC<{
     isDragging,
   } = useSortable({ id: cat.id, disabled: cat.isArchived });
 
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     borderBottom: '1px solid var(--border)',
+    zIndex: isDragging ? 50 : undefined,
+    position: 'relative' as const,
   };
 
   return (
@@ -89,11 +93,11 @@ const SortableCategoryRow: React.FC<{
           <button
             {...attributes}
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 rounded touch-manipulation shrink-0"
-            style={{ color: 'var(--text-tertiary)' }}
+            className="cursor-grab active:cursor-grabbing p-2 rounded shrink-0"
+            style={{ color: 'var(--text-tertiary)', touchAction: 'none' }}
             title="Vilkt lai pārkārtotu"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="2"/><circle cx="15" cy="5" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="19" r="2"/><circle cx="15" cy="19" r="2"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="2"/><circle cx="15" cy="5" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="19" r="2"/><circle cx="15" cy="19" r="2"/></svg>
           </button>
         )}
 
@@ -213,8 +217,9 @@ const CategoryManager: React.FC = () => {
   const categories = [...activeCategories, ...archivedCategories];
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const addCategory = async () => {
@@ -335,7 +340,7 @@ const CategoryManager: React.FC = () => {
       </div>
 
       {/* Category list with drag-and-drop */}
-      <div className="max-h-80 overflow-y-auto pr-2">
+      <div className="pr-2">
         {activeCategories.length > 0 && (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={activeCategories.map(c => c.id)} strategy={verticalListSortingStrategy}>
