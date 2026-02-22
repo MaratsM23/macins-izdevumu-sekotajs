@@ -46,13 +46,23 @@ const App: React.FC = () => {
     );
   }
 
+  const handleLogout = async () => {
+    if (isDemoMode) {
+      setIsDemoMode(false);
+      setSession(null);
+      return;
+    }
+    await supabase.auth.signOut();
+    setSession(null);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'add': return <AddExpenseForm key="add" onSaveSuccess={() => setActiveTab('history')} />;
       case 'history': return <HistoryView key="history" />;
       case 'finance': return <FinanceView key="finance" />;
       case 'reports': return <ReportsView key="reports" />;
-      case 'settings': return <SettingsView key="settings" />;
+      case 'settings': return <SettingsView key="settings" onLogout={handleLogout} isDemoMode={isDemoMode} userEmail={session?.user?.email} />;
       default: return <AddExpenseForm key="default" onSaveSuccess={() => setActiveTab('history')} />;
     }
   };

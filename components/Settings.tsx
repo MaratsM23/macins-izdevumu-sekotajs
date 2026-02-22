@@ -7,7 +7,13 @@ import CategoryManager from './CategoryManager';
 import IncomeCategoryManager from './IncomeCategoryManager';
 import RecurringManager from './RecurringManager';
 
-const SettingsView: React.FC = () => {
+interface SettingsProps {
+  onLogout?: () => void;
+  isDemoMode?: boolean;
+  userEmail?: string;
+}
+
+const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail }) => {
   const [importError, setImportError] = useState('');
 
   const handleExportJSON = async () => {
@@ -104,6 +110,29 @@ const SettingsView: React.FC = () => {
             {importError && <p className="text-center text-xs font-black p-3 rounded-xl tracking-wide uppercase" style={{ backgroundColor: 'rgba(248, 113, 113, 0.1)', color: 'var(--danger)', border: '1px solid rgba(248, 113, 113, 0.2)' }}>{importError}</p>}
           </div>
         </motion.section>
+
+        {onLogout && (
+          <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-5 rounded-2xl space-y-3" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+            <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Konts</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  {isDemoMode ? 'Demo režīms' : userEmail || 'Lietotājs'}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                  {isDemoMode ? 'Dati glabājas tikai šajā ierīcē' : 'Supabase autentifikācija'}
+                </p>
+              </div>
+              <button
+                onClick={onLogout}
+                className="px-4 py-2 rounded-xl font-bold text-sm active:scale-[0.98] transition-all"
+                style={{ backgroundColor: 'rgba(248, 113, 113, 0.1)', color: 'var(--danger)', border: '1px solid rgba(248, 113, 113, 0.2)' }}
+              >
+                Iziet
+              </button>
+            </div>
+          </motion.section>
+        )}
 
         <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 pt-4">
           <h3 className="text-xs font-black uppercase tracking-widest px-2" style={{ color: 'var(--text-tertiary)' }}>Bīstamā Zona</h3>
