@@ -126,7 +126,7 @@ const App: React.FC = () => {
       setSession(null);
       return;
     }
-    await supabase.auth.signOut();
+    try { await supabase.auth.signOut(); } catch (e) { /* ignore */ }
     try { await clearLocalData(); } catch (e) { /* ignore */ }
     window.location.reload();
   };
