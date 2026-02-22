@@ -9,23 +9,30 @@ const FinanceView: React.FC = () => {
   return (
     <div className="space-y-6">
        <div className="flex justify-between items-center px-1">
-          <h2 className="text-xl font-bold text-stone-800">Finanses</h2>
+          <h2 className="text-xl font-display font-bold" style={{ color: 'var(--text-primary)' }}>Finanses</h2>
        </div>
 
        {/* Custom Toggle Switch */}
-       <div className="bg-stone-200/50 p-1 rounded-2xl flex relative">
-          <div 
-             className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-xl shadow-sm transition-all duration-300 ease-out ${view === 'savings' ? 'left-1' : 'left-[calc(50%)]'}`}
+       <div className="p-1 rounded-2xl flex relative" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}>
+          <div
+             className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-xl transition-all duration-300 ease-out"
+             style={{
+               backgroundColor: 'var(--bg-elevated)',
+               border: '1px solid var(--border-accent)',
+               left: view === 'savings' ? '4px' : 'calc(50%)'
+             }}
           ></div>
-          <button 
+          <button
              onClick={() => setView('savings')}
-             className={`flex-1 relative z-10 py-2.5 text-sm font-bold rounded-xl transition-colors ${view === 'savings' ? 'text-stone-800' : 'text-stone-500 hover:text-stone-600'}`}
+             className="flex-1 relative z-10 py-2.5 text-sm font-bold rounded-xl transition-colors"
+             style={{ color: view === 'savings' ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}
           >
              Uzkrājumi
           </button>
-          <button 
+          <button
              onClick={() => setView('debts')}
-             className={`flex-1 relative z-10 py-2.5 text-sm font-bold rounded-xl transition-colors ${view === 'debts' ? 'text-stone-800' : 'text-stone-500 hover:text-stone-600'}`}
+             className="flex-1 relative z-10 py-2.5 text-sm font-bold rounded-xl transition-colors"
+             style={{ color: view === 'debts' ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}
           >
              Parādi
           </button>

@@ -43,37 +43,42 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess, onDemoMode }) => {
 
     return (
         <div className="flex flex-col items-center justify-center h-[70vh] px-4">
-            <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-xl shadow-stone-200/50 border border-stone-100">
-                <h2 className="text-2xl font-black text-center mb-6 text-stone-800">
+            <div className="w-full max-w-sm p-8 rounded-2xl" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                <h2 className="text-2xl font-display font-bold text-center mb-6" style={{ color: 'var(--text-primary)' }}>
                     {isRegistering ? 'Izveidot Kontu' : 'Pieslēgties'}
                 </h2>
 
                 {message && (
-                    <div className={`p-3 mb-4 text-sm font-medium rounded-xl text-center ${message.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
-                        }`}>
+                    <div className="p-3 mb-4 text-sm font-medium rounded-xl text-center" style={{
+                        backgroundColor: message.type === 'error' ? 'rgba(248, 113, 113, 0.1)' : 'rgba(74, 222, 128, 0.1)',
+                        color: message.type === 'error' ? 'var(--danger)' : 'var(--success)',
+                        border: `1px solid ${message.type === 'error' ? 'rgba(248, 113, 113, 0.2)' : 'rgba(74, 222, 128, 0.2)'}`
+                    }}>
                         {message.text}
                     </div>
                 )}
 
                 <form onSubmit={handleAuth} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">E-pasts</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>E-pasts</label>
                         <input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                            className="w-full p-3 rounded-xl outline-none transition-all"
+                            style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
                             placeholder="vards@epasts.lv"
                             required
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-1">Parole</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-secondary)' }}>Parole</label>
                         <input
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full p-3 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                            className="w-full p-3 rounded-xl outline-none transition-all"
+                            style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
                             placeholder="••••••••"
                             required
                             minLength={6}
@@ -83,7 +88,8 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess, onDemoMode }) => {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-stone-800 text-white font-bold py-3.5 px-4 rounded-xl disabled:bg-stone-300 disabled:cursor-not-allowed hover:bg-stone-900 active:scale-95 transition-all shadow-md shadow-stone-300"
+                        className="w-full font-bold py-3.5 px-4 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition-all"
+                        style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)', boxShadow: '0 4px 20px rgba(212, 168, 83, 0.3)' }}
                     >
                         {loading ? 'Lūdzu uzgaidiet...' : (isRegistering ? 'Reģistrēties' : 'Pieslēgties')}
                     </button>
@@ -95,21 +101,23 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess, onDemoMode }) => {
                             setIsRegistering(!isRegistering);
                             setMessage(null);
                         }}
-                        className="text-sm font-bold text-orange-600 hover:text-orange-700 transition-colors mb-6 block w-full"
+                        className="text-sm font-bold transition-colors mb-6 block w-full"
+                        style={{ color: 'var(--accent-primary)' }}
                     >
                         {isRegistering ? 'Jau ir konts? Pieslēdzies' : 'Nav konta? Reģistrējies'}
                     </button>
 
                     {onDemoMode && (
-                        <div className="border-t border-stone-100 pt-5">
+                        <div className="pt-5" style={{ borderTop: '1px solid var(--border)' }}>
                             <button
                                 onClick={onDemoMode}
                                 type="button"
-                                className="w-full bg-stone-50 border border-stone-200 text-stone-600 font-bold py-3.5 px-4 rounded-xl hover:bg-stone-100 hover:text-stone-800 transition-all flex items-center justify-center gap-2"
+                                className="w-full font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2"
+                                style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
                             >
-                                <span>👀</span> Pārbaudīt Bez Reģistrācijas (Demo)
+                                Pārbaudīt Bez Reģistrācijas (Demo)
                             </button>
-                            <p className="text-[10px] text-stone-400 mt-2">Ja saskaraties ar Supabase rate limitiem, izmantojiet šo.</p>
+                            <p className="text-[10px] mt-2" style={{ color: 'var(--text-tertiary)' }}>Ja saskaraties ar Supabase rate limitiem, izmantojiet šo.</p>
                         </div>
                     )}
                 </div>

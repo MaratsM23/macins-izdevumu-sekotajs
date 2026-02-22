@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { TabType } from './types';
 import { supabase } from './supabase';
 import { Session } from '@supabase/supabase-js';
@@ -14,9 +15,10 @@ import FinanceView from './components/FinanceView';
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('add');
   const [session, setSession] = useState<Session | null>(null);
-  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(!import.meta.env.VITE_SUPABASE_URL);
 
   useEffect(() => {
+    if (!import.meta.env.VITE_SUPABASE_URL) return;
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
@@ -32,10 +34,10 @@ const App: React.FC = () => {
 
   if (!session && !isDemoMode) {
     return (
-      <div className="flex flex-col min-h-screen max-w-lg mx-auto bg-stone-50 shadow-2xl shadow-stone-200 relative">
-        <header className="bg-stone-50/90 backdrop-blur-md sticky top-0 z-20 px-6 py-4 flex justify-between items-end border-b border-stone-100">
-          <h1 className="text-2xl font-black tracking-tighter text-stone-800">
-            <span className="text-orange-500">.</span>Maciņš
+      <div className="flex flex-col min-h-screen max-w-lg mx-auto relative" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <header className="sticky top-0 z-20 px-6 py-4 flex justify-between items-end" style={{ backgroundColor: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
+          <h1 className="text-2xl font-display font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            <span style={{ color: 'var(--accent-primary)' }}>.</span>Maciņš
           </h1>
         </header>
         <Auth onLoginSuccess={() => { }} onDemoMode={() => setIsDemoMode(true)} />
@@ -54,15 +56,14 @@ const App: React.FC = () => {
     }
   };
 
-  const navItems: { id: TabType; label: string; icon: string }[] = [
-    { id: 'add', label: 'Jauns', icon: 'M' }, // Using a different visual or just the plus
-    { id: 'history', label: 'Vēsture', icon: 'H' },
-    { id: 'finance', label: 'Finanses', icon: 'P' },
-    { id: 'reports', label: 'Budžets', icon: 'B' },
-    { id: 'settings', label: 'Iestat.', icon: 'S' },
+  const navItems: { id: TabType; label: string }[] = [
+    { id: 'add', label: 'Jauns' },
+    { id: 'history', label: 'Vēsture' },
+    { id: 'finance', label: 'Finanses' },
+    { id: 'reports', label: 'Budžets' },
+    { id: 'settings', label: 'Iestat.' },
   ];
 
-  // Custom icons for the warm theme (SVG)
   const Icons = {
     add: (active: boolean) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={active ? 2.5 : 1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>,
     history: (active: boolean) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={active ? 2.5 : 1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>,
@@ -72,21 +73,21 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen max-w-lg mx-auto bg-stone-50 shadow-2xl shadow-stone-200 relative">
-      {/* Header - Minimalist Glassmorphism */}
-      <header className="bg-white/60 backdrop-blur-xl sticky top-0 z-40 px-6 py-4 flex justify-between items-end border-b border-white/50 shadow-[0_4px_30px_rgba(0,0,0,0.03)]">
+    <div className="flex flex-col min-h-screen max-w-lg mx-auto relative" style={{ backgroundColor: 'var(--bg-primary)' }}>
+      {/* Header - Dark Luxury */}
+      <header className="sticky top-0 z-40 px-6 py-4 flex justify-between items-end" style={{ backgroundColor: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
         <motion.h1
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-2xl font-black tracking-tighter text-stone-800"
+          className="text-2xl font-display font-bold tracking-tight"
+          style={{ color: 'var(--text-primary)' }}
         >
-          <span className="text-stone-400">.</span>Maciņš
+          <span style={{ color: 'var(--accent-primary)' }}>.</span>Maciņš
         </motion.h1>
         <div className="flex items-center gap-3">
-          {/* Small indicator of sync status */}
-          <div className="flex items-center gap-1.5 bg-stone-100/50 px-2 py-1 rounded-full border border-white">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse"></div>
-            <span className="text-[9px] font-bold text-stone-500 tracking-wider">SYNCED</span>
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}>
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--success)', boxShadow: '0 0 8px rgba(74, 222, 128, 0.5)' }}></div>
+            <span className="text-[9px] font-bold tracking-wider" style={{ color: 'var(--text-secondary)' }}>SYNCED</span>
           </div>
         </div>
       </header>
@@ -107,9 +108,9 @@ const App: React.FC = () => {
         </AnimatePresence>
       </main>
 
-      {/* Bottom Navigation - Glassmorphism Floating styling */}
-      <div className="fixed bottom-0 left-0 right-0 p-5 pb-8 z-30 max-w-lg mx-auto pointer-events-none">
-        <nav className="bg-white/70 backdrop-blur-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.08)] rounded-3xl flex justify-around p-1.5 pointer-events-auto">
+      {/* Bottom Navigation - Dark Luxury */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 pb-6 z-30 max-w-lg mx-auto pointer-events-none">
+        <nav className="rounded-2xl flex justify-around p-1.5 pointer-events-auto" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)', boxShadow: '0 -4px 30px rgba(0, 0, 0, 0.4)' }}>
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -121,20 +122,20 @@ const App: React.FC = () => {
                 }}
                 className="relative flex flex-col items-center flex-1 py-3 transition-all duration-300 active:scale-95 touch-manipulation group"
               >
-                {/* Active Indicator Background */}
                 {isActive && (
                   <motion.div
                     layoutId="active-nav"
-                    className="absolute inset-0 bg-stone-800 rounded-2xl -z-10"
+                    className="absolute inset-0 rounded-xl -z-10"
+                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-accent)' }}
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
 
-                <div className={`mb-1 transition-colors duration-300 ${isActive ? 'text-white' : 'text-stone-400 group-hover:text-stone-600'}`}>
+                <div className="mb-1 transition-colors duration-300" style={{ color: isActive ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}>
                   {Icons[item.id as keyof typeof Icons](isActive)}
                 </div>
 
-                <span className={`text-[9px] font-bold tracking-wider transition-all duration-300 ${isActive ? 'text-white opacity-100' : 'text-stone-400 opacity-60'}`}>
+                <span className="text-[9px] font-bold tracking-wider transition-all duration-300" style={{ color: isActive ? 'var(--accent-primary)' : 'var(--text-tertiary)', opacity: isActive ? 1 : 0.6 }}>
                   {item.label}
                 </span>
               </button>
@@ -142,6 +143,7 @@ const App: React.FC = () => {
           })}
         </nav>
       </div>
+      <SpeedInsights />
     </div>
   );
 };
