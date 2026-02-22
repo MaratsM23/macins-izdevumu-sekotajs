@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
+import { Analytics } from '@vercel/analytics/react';
 import { TabType } from './types';
 import { supabase } from './supabase';
 import { Session } from '@supabase/supabase-js';
@@ -144,6 +145,7 @@ const App: React.FC = () => {
         </nav>
       </div>
       <SpeedInsights />
+      <Analytics />
     </div>
   );
 };
