@@ -62,6 +62,9 @@ const App: React.FC = () => {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) {
+        syncFromSupabase();
+      }
     });
 
     const {
@@ -117,14 +120,15 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await clearLocalData();
     if (isDemoMode) {
+      try { await clearLocalData(); } catch (e) { /* ignore */ }
       setIsDemoMode(false);
       setSession(null);
       return;
     }
     await supabase.auth.signOut();
-    setSession(null);
+    try { await clearLocalData(); } catch (e) { /* ignore */ }
+    window.location.reload();
   };
 
   const renderContent = () => {

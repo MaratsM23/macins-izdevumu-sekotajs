@@ -1,6 +1,19 @@
 import { db } from './db';
 import { supabase } from './supabase';
 
+// Convert snake_case keys from Supabase to camelCase for local Dexie DB
+const snakeToCamel = (obj: Record<string, any>): Record<string, any> => {
+    const result: Record<string, any> = {};
+    for (const key of Object.keys(obj)) {
+        if (key === 'user_id') continue; // skip, not stored locally
+        const camelKey = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+        result[camelKey] = obj[key];
+    }
+    return result;
+};
+
+const mapRows = (rows: any[] | null) => rows ? rows.map(snakeToCamel) : [];
+
 export const syncFromSupabase = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
@@ -16,29 +29,23 @@ export const syncFromSupabase = async () => {
             db.debts.clear(),
         ]);
 
-        // 1. Categories
         const { data: categories } = await supabase.from('categories').select('*');
-        if (categories) await db.categories.bulkPut(categories);
+        if (categories?.length) await db.categories.bulkPut(mapRows(categories) as any);
 
-        // 2. Income Categories
         const { data: incomeCategories } = await supabase.from('income_categories').select('*');
-        if (incomeCategories) await db.incomeCategories.bulkPut(incomeCategories);
+        if (incomeCategories?.length) await db.incomeCategories.bulkPut(mapRows(incomeCategories) as any);
 
-        // 3. Expenses
         const { data: expenses } = await supabase.from('expenses').select('*');
-        if (expenses) await db.expenses.bulkPut(expenses);
+        if (expenses?.length) await db.expenses.bulkPut(mapRows(expenses) as any);
 
-        // 4. Incomes
         const { data: incomes } = await supabase.from('incomes').select('*');
-        if (incomes) await db.incomes.bulkPut(incomes);
+        if (incomes?.length) await db.incomes.bulkPut(mapRows(incomes) as any);
 
-        // 5. Recurring Expenses
         const { data: recurring } = await supabase.from('recurring_expenses').select('*');
-        if (recurring) await db.recurringExpenses.bulkPut(recurring);
+        if (recurring?.length) await db.recurringExpenses.bulkPut(mapRows(recurring) as any);
 
-        // 6. Debts
         const { data: debts } = await supabase.from('debts').select('*');
-        if (debts) await db.debts.bulkPut(debts);
+        if (debts?.length) await db.debts.bulkPut(mapRows(debts) as any);
 
         console.log('Sync from Supabase complete');
     } catch (error) {
@@ -46,7 +53,7 @@ export const syncFromSupabase = async () => {
     }
 };
 
-// Example function to push a single record. 
+// Example function to push a single record.
 // For a production app, you might want a queue system for offline mutations.
 export const pushExpenseToSupabase = async (expense: any) => {
     const { data: { session } } = await supabase.auth.getSession();
