@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { db } from '../db';
+import { supabase } from '../supabase';
 import { downloadFile, validateImportData } from '../utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import CategoryManager from './CategoryManager';
@@ -11,10 +12,14 @@ interface SettingsProps {
   onLogout?: () => void;
   isDemoMode?: boolean;
   userEmail?: string;
+  onShowPrivacy?: () => void;
 }
 
-const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail }) => {
+const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail, onShowPrivacy }) => {
   const [importError, setImportError] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleExportJSON = async () => {
     const expenses = await db.expenses.toArray();
@@ -69,6 +74,21 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
     if (window.confirm('DANGER: Vai tiešām dzēst PILNĪGI VISUS datus?')) {
       await Promise.all([db.expenses.clear(), db.incomes.clear(), db.categories.clear(), db.incomeCategories.clear(), db.recurringExpenses.clear(), db.debts.clear()]);
       window.location.reload();
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DZĒST') return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.rpc('delete_user');
+      if (error) throw error;
+      await Promise.all([db.expenses.clear(), db.incomes.clear(), db.categories.clear(), db.incomeCategories.clear(), db.recurringExpenses.clear(), db.debts.clear()]);
+      await supabase.auth.signOut();
+      window.location.reload();
+    } catch (err) {
+      alert('Kļūda dzēšot kontu. Lūdzu mēģiniet vēlreiz.');
+      setIsDeleting(false);
     }
   };
 
@@ -131,6 +151,15 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
                 Iziet
               </button>
             </div>
+            {onShowPrivacy && (
+              <button
+                onClick={onShowPrivacy}
+                className="w-full text-left text-xs font-medium pt-2 underline"
+                style={{ color: 'var(--text-tertiary)' }}
+              >
+                Privātuma politika
+              </button>
+            )}
           </motion.section>
         )}
 
@@ -145,11 +174,97 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
           <button onClick={handleFullReset} className="w-full p-4 rounded-2xl font-bold active:scale-[0.98] transition-all text-left flex justify-between items-center" style={{ backgroundColor: 'rgba(248, 113, 113, 0.08)', border: '1px solid rgba(248, 113, 113, 0.2)', color: 'var(--danger)' }}>
             <span>Dzēst pilnīgi visu</span>
           </button>
+
+          {onLogout && !isDemoMode && (
+            <button onClick={() => setShowDeleteConfirm(true)} className="w-full p-4 rounded-2xl font-bold active:scale-[0.98] transition-all text-left flex justify-between items-center" style={{ backgroundColor: 'rgba(220, 38, 38, 0.12)', border: '2px solid rgba(220, 38, 38, 0.3)', color: '#dc2626' }}>
+              <span>Dzēst kontu</span>
+              <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded" style={{ backgroundColor: 'rgba(220, 38, 38, 0.15)' }}>Neatgriezeniski</span>
+            </button>
+          )}
+
           <p className="text-[10px] text-center pt-2 font-black uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>
             Versija 2.0 Premium
           </p>
         </motion.section>
       </motion.div>
+
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+            onClick={() => !isDeleting && setShowDeleteConfirm(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+              style={{ backgroundColor: 'var(--bg-secondary)', border: '2px solid rgba(220, 38, 38, 0.3)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center space-y-2">
+                <div className="text-4xl">&#9888;</div>
+                <h3 className="text-lg font-bold" style={{ color: '#dc2626' }}>Dzēst kontu?</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>Visi jūsu dati tiks neatgriezeniski dzēsti:</strong>
+                </p>
+                <ul className="text-xs text-left space-y-1 px-4" style={{ color: 'var(--text-tertiary)' }}>
+                  <li>&#8226; Visi izdevumi un ienākumi</li>
+                  <li>&#8226; Visas kategorijas</li>
+                  <li>&#8226; Visi parādi</li>
+                  <li>&#8226; Visi regulārie maksājumi</li>
+                  <li>&#8226; Jūsu konts un autentifikācijas dati</li>
+                </ul>
+                <p className="text-xs font-bold pt-2" style={{ color: '#dc2626' }}>
+                  Šo darbību nav iespējams atsaukt!
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
+                  Ierakstiet <span style={{ color: '#dc2626' }}>DZĒST</span> lai apstiprinātu:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="DZĒST"
+                  disabled={isDeleting}
+                  className="w-full p-3 rounded-xl text-center font-bold tracking-widest text-sm"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}
+                  disabled={isDeleting}
+                  className="flex-1 p-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                >
+                  Atcelt
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteConfirmText !== 'DZĒST' || isDeleting}
+                  className="flex-1 p-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all"
+                  style={{
+                    backgroundColor: deleteConfirmText === 'DZĒST' ? '#dc2626' : 'rgba(220, 38, 38, 0.2)',
+                    color: deleteConfirmText === 'DZĒST' ? '#fff' : 'rgba(220, 38, 38, 0.4)',
+                    opacity: isDeleting ? 0.5 : 1,
+                  }}
+                >
+                  {isDeleting ? 'Dzēš...' : 'Dzēst kontu'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

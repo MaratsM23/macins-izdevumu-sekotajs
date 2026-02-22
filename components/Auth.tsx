@@ -4,9 +4,10 @@ import { supabase } from '../supabase';
 interface AuthProps {
     onLoginSuccess: () => void;
     onDemoMode?: () => void;
+    onShowPrivacy?: () => void;
 }
 
-const Auth: React.FC<AuthProps> = ({ onLoginSuccess, onDemoMode }) => {
+const Auth: React.FC<AuthProps> = ({ onLoginSuccess, onDemoMode, onShowPrivacy }) => {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -93,6 +94,20 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess, onDemoMode }) => {
                     >
                         {loading ? 'Lūdzu uzgaidiet...' : (isRegistering ? 'Reģistrēties' : 'Pieslēgties')}
                     </button>
+
+                    {isRegistering && (
+                        <p className="text-[11px] text-center mt-3 leading-relaxed" style={{ color: 'var(--text-tertiary)' }}>
+                            Reģistrējoties jūs piekrītat Maciņš{' '}
+                            <button
+                                type="button"
+                                onClick={onShowPrivacy}
+                                className="underline font-bold"
+                                style={{ color: 'var(--accent-primary)' }}
+                            >
+                                Privātuma politikai
+                            </button>.
+                        </p>
+                    )}
                 </form>
 
                 <div className="mt-6 text-center">

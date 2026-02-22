@@ -12,11 +12,13 @@ import HistoryView from './components/History';
 import ReportsView from './components/Reports';
 import SettingsView from './components/Settings';
 import FinanceView from './components/FinanceView';
+import PrivacyPolicy from './components/PrivacyPolicy';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('add');
   const [session, setSession] = useState<Session | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(!import.meta.env.VITE_SUPABASE_URL);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   useEffect(() => {
     if (!import.meta.env.VITE_SUPABASE_URL) return;
@@ -41,7 +43,13 @@ const App: React.FC = () => {
             <span style={{ color: 'var(--accent-primary)' }}>.</span>Maciņš
           </h1>
         </header>
-        <Auth onLoginSuccess={() => { }} onDemoMode={() => setIsDemoMode(true)} />
+        {showPrivacy ? (
+          <div className="flex-1 overflow-y-auto p-5">
+            <PrivacyPolicy onBack={() => setShowPrivacy(false)} />
+          </div>
+        ) : (
+          <Auth onLoginSuccess={() => { }} onDemoMode={() => setIsDemoMode(true)} onShowPrivacy={() => setShowPrivacy(true)} />
+        )}
       </div>
     );
   }
@@ -62,7 +70,7 @@ const App: React.FC = () => {
       case 'history': return <HistoryView key="history" />;
       case 'finance': return <FinanceView key="finance" />;
       case 'reports': return <ReportsView key="reports" />;
-      case 'settings': return <SettingsView key="settings" onLogout={handleLogout} isDemoMode={isDemoMode} userEmail={session?.user?.email} />;
+      case 'settings': return <SettingsView key="settings" onLogout={handleLogout} isDemoMode={isDemoMode} userEmail={session?.user?.email} onShowPrivacy={() => setShowPrivacy(true)} />;
       default: return <AddExpenseForm key="default" onSaveSuccess={() => setActiveTab('history')} />;
     }
   };
@@ -105,18 +113,24 @@ const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-x-hidden hide-scrollbar pb-28">
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 15, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -15, scale: 0.98 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="w-full h-full p-5"
-          >
-            {renderContent()}
-          </motion.div>
-        </AnimatePresence>
+        {showPrivacy ? (
+          <div className="w-full h-full p-5">
+            <PrivacyPolicy onBack={() => setShowPrivacy(false)} />
+          </div>
+        ) : (
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -15, scale: 0.98 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="w-full h-full p-5"
+            >
+              {renderContent()}
+            </motion.div>
+          </AnimatePresence>
+        )}
       </main>
 
       {/* Bottom Navigation - Dark Luxury */}
