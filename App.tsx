@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Analytics } from '@vercel/analytics/react';
 import { TabType } from './types';
@@ -14,13 +14,31 @@ import SettingsView from './components/Settings';
 import FinanceView from './components/FinanceView';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Onboarding from './components/Onboarding';
+import { db } from './db';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('add');
   const [session, setSession] = useState<Session | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(!import.meta.env.VITE_SUPABASE_URL);
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('macins_onboarding_done'));
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const onboardingChecked = useRef(false);
+
+  // Check if user is truly new (no existing expenses and no localStorage flag)
+  useEffect(() => {
+    if (onboardingChecked.current) return;
+    if (localStorage.getItem('macins_onboarding_done')) return;
+
+    onboardingChecked.current = true;
+    db.expenses.count().then(count => {
+      if (count === 0) {
+        setShowOnboarding(true);
+      } else {
+        // Existing user — mark onboarding as done so we never check again
+        localStorage.setItem('macins_onboarding_done', '1');
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (!import.meta.env.VITE_SUPABASE_URL) return;
