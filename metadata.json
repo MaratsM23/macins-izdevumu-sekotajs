@@ -1,0 +1,5 @@
+{
+  "name": "Maciņš - Izdevumu Sekotājs",
+  "description": "Vienkārša un ātra personīgo izdevumu sekošanas aplikācija ar vietējo datu krātuvi (local-first).",
+  "requestFramePermissions": []
+}
