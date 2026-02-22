@@ -460,34 +460,55 @@ const ReportsView: React.FC = () => {
             </span>
           </div>
           <div className="space-y-2">
-            {billStatus.map(bill => (
-              <div
-                key={bill.id}
-                onClick={() => openPaymentModal(bill)}
-                className={`flex justify-between items-center p-4 rounded-2xl cursor-pointer active:scale-[0.98] transition-all ${bill.isPaid ? 'opacity-50' : ''}`}
-                style={{ backgroundColor: 'var(--bg-secondary)', border: `1px solid ${bill.isPaid ? 'var(--border)' : 'var(--border-accent)'}` }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm" style={{
-                    backgroundColor: bill.isPaid ? 'rgba(74, 222, 128, 0.1)' : 'rgba(212, 168, 83, 0.1)',
-                    color: bill.isPaid ? 'var(--success)' : 'var(--accent-primary)'
-                  }}>
-                    {bill.isPaid ? '✓' : '⚡'}
-                  </div>
-                  <div>
-                    <p className={`text-sm font-bold ${bill.isPaid ? 'line-through' : ''}`} style={{ color: bill.isPaid ? 'var(--text-tertiary)' : 'var(--text-primary)' }}>
-                      {bill.note || bill.categoryName}
-                    </p>
-                    <p className="text-[10px] font-medium" style={{ color: 'var(--text-tertiary)' }}>
-                      Termiņš: {bill.expectedDay}. datums
-                    </p>
-                  </div>
-                </div>
-                <span className="text-sm font-bold" style={{ color: bill.isPaid ? 'var(--text-tertiary)' : 'var(--text-primary)' }}>
-                  {formatCurrency(bill.amount)}
-                </span>
-              </div>
-            ))}
+            <AnimatePresence mode="popLayout">
+              {billStatus.filter(b => !b.isPaid).length === 0 ? (
+                <motion.div
+                  key="bills-done"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="p-6 rounded-2xl text-center"
+                  style={{ backgroundColor: 'rgba(74, 222, 128, 0.08)', border: '1px solid rgba(74, 222, 128, 0.2)' }}
+                >
+                  <div className="text-3xl mb-2">✓</div>
+                  <p className="text-sm font-bold" style={{ color: 'var(--success)' }}>Visi rēķini apmaksāti</p>
+                  <p className="text-[10px] font-medium mt-1" style={{ color: 'var(--success)', opacity: 0.6 }}>{billStatus.length} no {billStatus.length}</p>
+                </motion.div>
+              ) : (
+                billStatus.filter(b => !b.isPaid).map(bill => (
+                  <motion.div
+                    key={bill.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, height: 0, scale: 0.95, marginBottom: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    onClick={() => openPaymentModal(bill)}
+                    className="flex justify-between items-center p-4 rounded-2xl cursor-pointer active:scale-[0.98] transition-all overflow-hidden"
+                    style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-accent)' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm" style={{
+                        backgroundColor: 'rgba(212, 168, 83, 0.1)',
+                        color: 'var(--accent-primary)'
+                      }}>
+                        ⚡
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                          {bill.note || bill.categoryName}
+                        </p>
+                        <p className="text-[10px] font-medium" style={{ color: 'var(--text-tertiary)' }}>
+                          Termiņš: {bill.expectedDay}. datums
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                      {formatCurrency(bill.amount)}
+                    </span>
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
           </div>
         </div>
       )}
@@ -502,31 +523,52 @@ const ReportsView: React.FC = () => {
             </span>
           </div>
           <div className="space-y-2">
-            {debtStatus.map(debt => (
-              <div
-                key={debt.id}
-                className={`flex justify-between items-center p-4 rounded-2xl transition-all ${debt.isPaid ? 'opacity-50' : ''}`}
-                style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm" style={{
-                    backgroundColor: debt.isPaid ? 'rgba(74, 222, 128, 0.1)' : 'rgba(248, 113, 113, 0.1)',
-                    color: debt.isPaid ? 'var(--success)' : 'var(--danger)'
-                  }}>
-                    {debt.isPaid ? '✓' : '!'}
-                  </div>
-                  <div>
-                    <p className={`text-sm font-bold ${debt.isPaid ? 'line-through' : ''}`} style={{ color: debt.isPaid ? 'var(--text-tertiary)' : 'var(--text-primary)' }}>
-                      {debt.title}
-                    </p>
-                    <p className="text-[10px] font-medium" style={{ color: 'var(--text-tertiary)' }}>Līzings / Kredīts</p>
-                  </div>
-                </div>
-                <span className="text-sm font-bold" style={{ color: debt.isPaid ? 'var(--text-tertiary)' : 'var(--text-primary)' }}>
-                  {formatCurrency(debt.monthlyPayment)}
-                </span>
-              </div>
-            ))}
+            <AnimatePresence mode="popLayout">
+              {debtStatus.filter(d => !d.isPaid).length === 0 ? (
+                <motion.div
+                  key="debts-done"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="p-6 rounded-2xl text-center"
+                  style={{ backgroundColor: 'rgba(74, 222, 128, 0.08)', border: '1px solid rgba(74, 222, 128, 0.2)' }}
+                >
+                  <div className="text-3xl mb-2">✓</div>
+                  <p className="text-sm font-bold" style={{ color: 'var(--success)' }}>Visi kredīti apmaksāti</p>
+                  <p className="text-[10px] font-medium mt-1" style={{ color: 'var(--success)', opacity: 0.6 }}>{debtStatus.length} no {debtStatus.length}</p>
+                </motion.div>
+              ) : (
+                debtStatus.filter(d => !d.isPaid).map(debt => (
+                  <motion.div
+                    key={debt.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, height: 0, scale: 0.95, marginBottom: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="flex justify-between items-center p-4 rounded-2xl transition-all overflow-hidden"
+                    style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm" style={{
+                        backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                        color: 'var(--danger)'
+                      }}>
+                        !
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                          {debt.title}
+                        </p>
+                        <p className="text-[10px] font-medium" style={{ color: 'var(--text-tertiary)' }}>Līzings / Kredīts</p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                      {formatCurrency(debt.monthlyPayment)}
+                    </span>
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
           </div>
         </div>
       )}
