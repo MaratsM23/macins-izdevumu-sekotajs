@@ -13,15 +13,23 @@ import ReportsView from './components/Reports';
 import SettingsView from './components/Settings';
 import FinanceView from './components/FinanceView';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import Onboarding from './components/Onboarding';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('add');
   const [session, setSession] = useState<Session | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(!import.meta.env.VITE_SUPABASE_URL);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('macins_onboarding_done'));
 
   useEffect(() => {
     if (!import.meta.env.VITE_SUPABASE_URL) return;
+
+    // Clean hash tokens from URL after Supabase processes them
+    if (window.location.hash.includes('access_token')) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
@@ -34,6 +42,15 @@ const App: React.FC = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const completeOnboarding = () => {
+    localStorage.setItem('macins_onboarding_done', '1');
+    setShowOnboarding(false);
+  };
+
+  if ((session || isDemoMode) && showOnboarding) {
+    return <Onboarding onComplete={completeOnboarding} />;
+  }
 
   if (!session && !isDemoMode) {
     return (

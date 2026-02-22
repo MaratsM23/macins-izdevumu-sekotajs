@@ -24,6 +24,7 @@ const Auth: React.FC<AuthProps> = ({ onLoginSuccess, onDemoMode, onShowPrivacy }
                 const { error } = await supabase.auth.signUp({
                     email,
                     password,
+                    options: { emailRedirectTo: window.location.origin },
                 });
                 if (error) throw error;
                 setMessage({ type: 'success', text: 'Pārbaudiet savu e-pastu, lai apstiprinātu reģistrāciju!' });
