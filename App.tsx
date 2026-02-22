@@ -43,9 +43,20 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!import.meta.env.VITE_SUPABASE_URL) return;
 
+    // Handle PKCE auth callback (?code=xxx from email confirmation)
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(() => {
+        window.history.replaceState(null, '', window.location.pathname);
+      });
+    }
+
     // Clean hash tokens from URL after Supabase processes them
     if (window.location.hash.includes('access_token')) {
-      window.history.replaceState(null, '', window.location.pathname);
+      setTimeout(() => {
+        window.history.replaceState(null, '', window.location.pathname);
+      }, 500);
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
