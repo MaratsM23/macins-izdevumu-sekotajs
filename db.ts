@@ -20,30 +20,38 @@ export class AppDatabase extends Dexie {
       recurringExpenses: 'id, categoryId, isActive',
       debts: 'id, isPaidOff'
     });
+    (this as any).version(8).stores({
+      expenses: 'id, date, categoryId, debtId',
+      incomes: 'id, date, categoryId, sourceCategoryId',
+      categories: 'id, name, isArchived, isInvestment, sortOrder',
+      incomeCategories: 'id, name, isArchived',
+      recurringExpenses: 'id, categoryId, isActive',
+      debts: 'id, isPaidOff'
+    });
   }
 }
 
 export const db = new AppDatabase();
 
-export const DEFAULT_CATEGORIES = [
-  'Pārtika', 
-  'Pusdienas', 
-  'Kafejnīcas', 
-  'Transports', 
-  'Car sharing',
-  'Veselība', 
-  'Abonementi', 
-  'Izklaide', 
-  'Kompulsīvie pirkumi',
-  'Alko',
-  'Māja', 
-  'Bērni', 
-  'Dāvanas', 
-  'Kredīti',
-  'Līzings',
-  'Ieguldījumi',
-  'Uzkrājumi',
-  'Citi'
+export const DEFAULT_CATEGORIES: { name: string; icon: string }[] = [
+  { name: 'Pārtika', icon: '🛒' },
+  { name: 'Pusdienas', icon: '🍽️' },
+  { name: 'Kafejnīcas', icon: '☕' },
+  { name: 'Transports', icon: '🚌' },
+  { name: 'Car sharing', icon: '🚗' },
+  { name: 'Veselība', icon: '💊' },
+  { name: 'Abonementi', icon: '📱' },
+  { name: 'Izklaide', icon: '🍿' },
+  { name: 'Kompulsīvie pirkumi', icon: '🥺' },
+  { name: 'Alko', icon: '🍷' },
+  { name: 'Māja', icon: '🏠' },
+  { name: 'Bērni', icon: '🧸' },
+  { name: 'Dāvanas', icon: '🎁' },
+  { name: 'Kredīti', icon: '💳' },
+  { name: 'Līzings', icon: '📄' },
+  { name: 'Ieguldījumi', icon: '📈' },
+  { name: 'Uzkrājumi', icon: '💰' },
+  { name: 'Citi', icon: '📦' },
 ];
 
 export const DEFAULT_INCOME_CATEGORIES = [
@@ -58,11 +66,13 @@ export const DEFAULT_INCOME_CATEGORIES = [
 export async function seedDatabase() {
   const catCount = await db.categories.count();
   if (catCount === 0) {
-    const categories: Category[] = DEFAULT_CATEGORIES.map(name => ({
+    const categories: Category[] = DEFAULT_CATEGORIES.map((cat, index) => ({
       id: crypto.randomUUID(),
-      name,
+      name: cat.name,
+      icon: cat.icon,
+      sortOrder: index,
       isArchived: false,
-      isInvestment: ['Ieguldījumi', 'Uzkrājumi'].includes(name),
+      isInvestment: ['Ieguldījumi', 'Uzkrājumi'].includes(cat.name),
       createdAt: Date.now(),
       updatedAt: Date.now()
     }));

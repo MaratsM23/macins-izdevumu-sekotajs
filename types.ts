@@ -2,12 +2,14 @@
 export interface Category {
   id: string;
   name: string;
+  icon?: string;
+  sortOrder?: number;
   isArchived: boolean;
-  isInvestment?: boolean; // New flag for savings/investments
-  targetAmount?: number; // Savings goal
-  monthlyBudget?: number; // Monthly spending budget
-  initialBalance?: number; // Starting balance before tracking
-  description?: string; // Optional details
+  isInvestment?: boolean;
+  targetAmount?: number;
+  monthlyBudget?: number;
+  initialBalance?: number;
+  description?: string;
   createdAt: number;
   updatedAt: number;
 }

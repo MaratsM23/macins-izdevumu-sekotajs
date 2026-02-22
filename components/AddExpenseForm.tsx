@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { TransactionType, Category, IncomeCategory } from '../types';
 import { getTodayStr, formatCurrency, getRemainingDaysInMonth } from '../utils';
+import { getCategoryIcon } from './CategoryManager';
 import { Check, X, Delete, Sparkles } from 'lucide-react';
 
 interface Props {
@@ -83,7 +84,9 @@ const AddTransactionForm: React.FC<Props> = ({ onSaveSuccess }) => {
     };
   }, [categoryId]);
 
-  const activeCategories = (type === 'expense' ? expenseCategories : incomeCategories).filter(c => !c.isArchived);
+  const activeCategories = (type === 'expense' ? expenseCategories : incomeCategories)
+    .filter(c => !c.isArchived)
+    .sort((a, b) => ((a as Category).sortOrder ?? 999) - ((b as Category).sortOrder ?? 999));
 
   useEffect(() => {
     if (activeCategories.length > 0 && !categoryId) {
@@ -173,17 +176,8 @@ const AddTransactionForm: React.FC<Props> = ({ onSaveSuccess }) => {
     }
   };
 
-  const getEmojiForCategory = (name: string) => {
-    const emojis: Record<string, string> = {
-      'Pārtika': '🛒', 'Pusdienas': '🍽️', 'Kafejnīcas': '☕',
-      'Transports': '🚌', 'Car sharing': '🚗', 'Veselība': '💊',
-      'Abonementi': '📱', 'Izklaide': '🍿', 'Kompulsīvie pirkumi': '🥺',
-      'Alko': '🍷', 'Māja': '🏠', 'Bērni': '🧸', 'Dāvanas': '🎁',
-      'Kredīti': '💳', 'Līzings': '📄', 'Ieguldījumi': '📈', 'Uzkrājumi': '💰',
-      'Alga': '💵', 'Komandējums': '✈️', 'Bonuss': '🎉', 'Pārdošana': '🤝',
-      'Citi': '📦'
-    };
-    return emojis[name] || '📌';
+  const getEmojiForCategory = (cat: Category | IncomeCategory) => {
+    return getCategoryIcon(cat as Category);
   };
 
   const handleNoteChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -322,7 +316,7 @@ const AddTransactionForm: React.FC<Props> = ({ onSaveSuccess }) => {
                   color: 'var(--text-secondary)'
                 }}
               >
-                <span className="text-2xl mb-1">{getEmojiForCategory(cat.name)}</span>
+                <span className="text-2xl mb-1">{getEmojiForCategory(cat)}</span>
                 <span className={`text-[10px] font-bold truncate w-full text-center ${isSelected ? 'opacity-100' : 'opacity-70'}`}>
                   {cat.name}
                 </span>
