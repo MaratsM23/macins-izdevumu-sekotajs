@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Analytics } from '@vercel/analytics/react';
 import { TabType } from './types';
@@ -23,26 +23,27 @@ const App: React.FC = () => {
   const [isDemoMode, setIsDemoMode] = useState(!import.meta.env.VITE_SUPABASE_URL);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const onboardingChecked = useRef(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  // Check if user is truly new (no existing expenses and no localStorage flag)
+  // Check onboarding AFTER sync is complete (isInitializing becomes false)
   useEffect(() => {
-    if (onboardingChecked.current) return;
+    if (isInitializing) return;
     if (localStorage.getItem('macins_onboarding_done')) return;
 
-    onboardingChecked.current = true;
     db.expenses.count().then(count => {
       if (count === 0) {
         setShowOnboarding(true);
       } else {
-        // Existing user — mark onboarding as done so we never check again
         localStorage.setItem('macins_onboarding_done', '1');
       }
     });
-  }, []);
+  }, [isInitializing]);
 
   useEffect(() => {
-    if (!import.meta.env.VITE_SUPABASE_URL) return;
+    if (!import.meta.env.VITE_SUPABASE_URL) {
+      setIsInitializing(false);
+      return;
+    }
 
     // Handle PKCE auth callback (?code=xxx from email confirmation)
     const params = new URLSearchParams(window.location.search);
@@ -61,24 +62,32 @@ const App: React.FC = () => {
     }
 
     const initSync = async (session: Session) => {
-      await syncFromSupabase();
-      // One-time migration: if Supabase is empty but local has data, push it
-      const { count } = await supabase
-        .from('expenses')
-        .select('*', { count: 'exact', head: true });
-      if (count === 0) {
-        const localCount = await db.expenses.count();
-        if (localCount > 0) {
-          await pushAllToSupabase(session.user.id);
+      try {
+        await syncFromSupabase();
+        // One-time migration: if Supabase is empty but local has data, push it
+        const { count } = await supabase
+          .from('expenses')
+          .select('*', { count: 'exact', head: true });
+        if (count === 0) {
+          const localCount = await db.expenses.count();
+          if (localCount > 0) {
+            await pushAllToSupabase(session.user.id);
+          }
         }
+        setupSupabaseHooks(session.user.id);
+        void retrySyncQueue();
+      } finally {
+        setIsInitializing(false);
       }
-      setupSupabaseHooks(session.user.id);
-      void retrySyncQueue();
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) void initSync(session);
+      if (session) {
+        void initSync(session);
+      } else {
+        setIsInitializing(false);
+      }
     });
 
     const {
@@ -86,6 +95,7 @@ const App: React.FC = () => {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       if (event === 'SIGNED_IN' && session) {
+        setIsInitializing(true);
         await initSync(session);
       }
     });
@@ -97,6 +107,16 @@ const App: React.FC = () => {
     localStorage.setItem('macins_onboarding_done', '1');
     setShowOnboarding(false);
   };
+
+  if (isInitializing && !isDemoMode) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <h1 className="text-2xl font-display font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+          <span style={{ color: 'var(--accent-primary)' }}>.</span>Maciņš
+        </h1>
+      </div>
+    );
+  }
 
   if ((session || isDemoMode) && showOnboarding) {
     return <Onboarding onComplete={completeOnboarding} />;
@@ -121,10 +141,10 @@ const App: React.FC = () => {
     );
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     teardownSupabaseHooks();
     if (!isDemoMode) {
-      supabase.auth.signOut().catch(() => {});
+      try { await supabase.auth.signOut(); } catch (_) { /* ignore */ }
     }
     indexedDB.deleteDatabase('MaciņšDB');
     localStorage.removeItem('macins_onboarding_done');
