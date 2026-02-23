@@ -73,9 +73,13 @@ export async function processRecurringExpenses() {
     }
 
     if (newExpenses.length > 0) {
-      await db.expenses.bulkAdd(newExpenses);
-      await db.recurringExpenses.update(template.id, { 
-        lastGeneratedDate: lastGeneratedDateStr 
+      // Use individual add() calls so Dexie creating hooks fire
+      // and each expense gets pushed to Supabase automatically
+      for (const expense of newExpenses) {
+        await db.expenses.add(expense);
+      }
+      await db.recurringExpenses.update(template.id, {
+        lastGeneratedDate: lastGeneratedDateStr
       });
     }
   }

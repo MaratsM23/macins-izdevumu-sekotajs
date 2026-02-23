@@ -9,6 +9,8 @@ CREATE TABLE categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    icon TEXT,
+    sort_order INTEGER DEFAULT 0,
     is_archived BOOLEAN DEFAULT false,
     is_investment BOOLEAN DEFAULT false,
     target_amount NUMERIC,
@@ -24,6 +26,8 @@ CREATE TABLE income_categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    icon TEXT,
+    sort_order INTEGER DEFAULT 0,
     is_archived BOOLEAN DEFAULT false,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL

@@ -11,6 +11,12 @@ ALTER TABLE income_categories ADD COLUMN IF NOT EXISTS data_source text DEFAULT 
 ALTER TABLE recurring_expenses ADD COLUMN IF NOT EXISTS data_source text DEFAULT 'manual';
 ALTER TABLE debts ADD COLUMN IF NOT EXISTS data_source text DEFAULT 'manual';
 
+-- ─── 1b. Add missing icon + sort_order columns ─────────────
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS icon text;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS sort_order integer DEFAULT 0;
+ALTER TABLE income_categories ADD COLUMN IF NOT EXISTS icon text;
+ALTER TABLE income_categories ADD COLUMN IF NOT EXISTS sort_order integer DEFAULT 0;
+
 -- ─── 2. User Profiles ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_profiles (
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,

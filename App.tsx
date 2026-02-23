@@ -16,6 +16,7 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 import Onboarding from './components/Onboarding';
 import { db } from './db';
 import { setupSupabaseHooks, teardownSupabaseHooks, syncFromSupabase, pushAllToSupabase, retrySyncQueue } from './lib/supabaseSync';
+import { processRecurringExpenses } from './recurringLogic';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('add');
@@ -76,6 +77,8 @@ const App: React.FC = () => {
         }
         setupSupabaseHooks(session.user.id);
         void retrySyncQueue();
+        // Generate any pending recurring expenses (hooks are active, so they sync to Supabase)
+        void processRecurringExpenses();
       } finally {
         setIsInitializing(false);
       }

@@ -113,7 +113,41 @@ export async function syncFromSupabase(): Promise<void> {
 
   isSyncing = true;
   try {
-    // Clear local DB first
+    // 1. Fetch ALL data from Supabase FIRST — do NOT touch local DB yet
+    const [
+      categoriesRes,
+      incomeCategoriesRes,
+      expensesRes,
+      incomesRes,
+      recurringRes,
+      debtsRes,
+    ] = await Promise.all([
+      supabase.from('categories').select('*'),
+      supabase.from('income_categories').select('*'),
+      supabase.from('expenses').select('*'),
+      supabase.from('incomes').select('*'),
+      supabase.from('recurring_expenses').select('*'),
+      supabase.from('debts').select('*'),
+    ]);
+
+    // 2. Check for errors — if ANY fetch failed, abort and keep local data
+    const results = [
+      { name: 'categories', ...categoriesRes },
+      { name: 'income_categories', ...incomeCategoriesRes },
+      { name: 'expenses', ...expensesRes },
+      { name: 'incomes', ...incomesRes },
+      { name: 'recurring_expenses', ...recurringRes },
+      { name: 'debts', ...debtsRes },
+    ];
+    const errors = results.filter(r => r.error);
+    if (errors.length > 0) {
+      for (const e of errors) {
+        console.error(`Fetch failed [${e.name}]:`, e.error);
+      }
+      throw new Error('Sync failed — local data preserved');
+    }
+
+    // 3. All fetches succeeded — now safe to clear and refill local DB
     await Promise.all([
       db.expenses.clear(),
       db.incomes.clear(),
@@ -123,24 +157,12 @@ export async function syncFromSupabase(): Promise<void> {
       db.debts.clear(),
     ]);
 
-    // Pull from Supabase and convert to local format
-    const { data: categories } = await supabase.from('categories').select('*');
-    if (categories?.length) await db.categories.bulkPut(mapRowsToLocal(categories) as any);
-
-    const { data: incomeCategories } = await supabase.from('income_categories').select('*');
-    if (incomeCategories?.length) await db.incomeCategories.bulkPut(mapRowsToLocal(incomeCategories) as any);
-
-    const { data: expenses } = await supabase.from('expenses').select('*');
-    if (expenses?.length) await db.expenses.bulkPut(mapRowsToLocal(expenses) as any);
-
-    const { data: incomes } = await supabase.from('incomes').select('*');
-    if (incomes?.length) await db.incomes.bulkPut(mapRowsToLocal(incomes) as any);
-
-    const { data: recurring } = await supabase.from('recurring_expenses').select('*');
-    if (recurring?.length) await db.recurringExpenses.bulkPut(mapRowsToLocal(recurring) as any);
-
-    const { data: debts } = await supabase.from('debts').select('*');
-    if (debts?.length) await db.debts.bulkPut(mapRowsToLocal(debts) as any);
+    if (categoriesRes.data?.length) await db.categories.bulkPut(mapRowsToLocal(categoriesRes.data) as any);
+    if (incomeCategoriesRes.data?.length) await db.incomeCategories.bulkPut(mapRowsToLocal(incomeCategoriesRes.data) as any);
+    if (expensesRes.data?.length) await db.expenses.bulkPut(mapRowsToLocal(expensesRes.data) as any);
+    if (incomesRes.data?.length) await db.incomes.bulkPut(mapRowsToLocal(incomesRes.data) as any);
+    if (recurringRes.data?.length) await db.recurringExpenses.bulkPut(mapRowsToLocal(recurringRes.data) as any);
+    if (debtsRes.data?.length) await db.debts.bulkPut(mapRowsToLocal(debtsRes.data) as any);
 
     console.log('Sync from Supabase complete');
   } catch (error) {
