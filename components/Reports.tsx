@@ -30,6 +30,8 @@ const ReportsView: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [paymentForm, setPaymentForm] = useState<{ amount: string; date: string; note: string; } | null>(null);
   const [editingBudgetCatId, setEditingBudgetCatId] = useState<string | null>(null);
+  const [selectedDebt, setSelectedDebt] = useState<any | null>(null);
+  const [debtPaymentForm, setDebtPaymentForm] = useState<{ amount: string; date: string } | null>(null);
 
   const expenses = useLiveQuery(() => db.expenses.toArray()) || [];
   const incomes = useLiveQuery(() => db.incomes.toArray()) || [];
@@ -260,6 +262,38 @@ const ReportsView: React.FC = () => {
       await db.recurringExpenses.update(billId, { lastGeneratedDate: '1970-01-01' });
       setSelectedBill(null);
     }
+  };
+
+  const openDebtPaymentModal = (debt: any) => {
+    setSelectedDebt(debt);
+    setDebtPaymentForm({ amount: debt.monthlyPayment.toString(), date: getTodayStr() });
+  };
+
+  const confirmDebtPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedDebt || !debtPaymentForm) return;
+    const parsedAmount = parseAmount(debtPaymentForm.amount);
+    if (parsedAmount <= 0) { alert('Lūdzu ievadiet summu.'); return; }
+    try {
+      const cats = await db.categories.toArray();
+      const expCat = cats.find(c => c.id === selectedDebt.categoryId)
+        || cats.find(c => c.name.toLowerCase().includes('kred') || c.name.toLowerCase().includes('līz'))
+        || cats.find(c => c.name === 'Citi')
+        || cats[0];
+      await db.expenses.add({
+        id: crypto.randomUUID(), amount: parsedAmount, currency: 'EUR', date: debtPaymentForm.date,
+        categoryId: expCat?.id || selectedDebt.categoryId, debtId: selectedDebt.id,
+        note: `Maksājums: ${selectedDebt.title}`, createdAt: Date.now(), updatedAt: Date.now()
+      });
+      const newRemaining = selectedDebt.remainingAmount - parsedAmount;
+      await db.debts.update(selectedDebt.id, {
+        remainingAmount: newRemaining < 0 ? 0 : newRemaining,
+        isPaidOff: newRemaining <= 0.01,
+        updatedAt: Date.now()
+      });
+      setSelectedDebt(null);
+      setDebtPaymentForm(null);
+    } catch (err) { alert('Kļūda reģistrējot maksājumu'); }
   };
 
   const saveInlineBudget = async (catId: string, value: string) => {
@@ -546,7 +580,7 @@ const ReportsView: React.FC = () => {
                     exit={{ opacity: 0, height: 0, scale: 0.95, marginBottom: 0 }}
                     transition={{ duration: 0.3, ease: "easeOut" }}
                     className="flex justify-between items-center p-4 rounded-2xl transition-all overflow-hidden"
-                    style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+                    style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-accent)' }}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm" style={{
@@ -559,12 +593,21 @@ const ReportsView: React.FC = () => {
                         <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
                           {debt.title}
                         </p>
-                        <p className="text-[10px] font-medium" style={{ color: 'var(--text-tertiary)' }}>Līzings / Kredīts</p>
+                        <p className="text-[10px] font-medium" style={{ color: 'var(--text-tertiary)' }}>Atlikums: {formatCurrency(debt.remainingAmount)}</p>
                       </div>
                     </div>
-                    <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-                      {formatCurrency(debt.monthlyPayment)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+                        {formatCurrency(debt.monthlyPayment)}
+                      </span>
+                      <button
+                        onClick={() => openDebtPaymentModal(debt)}
+                        className="px-3 py-1.5 rounded-xl font-bold text-xs active:scale-95 transition-all"
+                        style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)' }}
+                      >
+                        Maksāt
+                      </button>
+                    </div>
                   </motion.div>
                 ))
               )}
@@ -794,6 +837,43 @@ const ReportsView: React.FC = () => {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Debt Payment Modal */}
+      {selectedDebt && debtPaymentForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={() => setSelectedDebt(null)}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden p-6 space-y-4" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{selectedDebt.title}</h3>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Atlikums: <span className="font-bold" style={{ color: 'var(--danger)' }}>{formatCurrency(selectedDebt.remainingAmount)}</span></p>
+              </div>
+              <button onClick={() => setSelectedDebt(null)} className="text-2xl leading-none" style={{ color: 'var(--text-tertiary)' }}>&times;</button>
+            </div>
+            <form onSubmit={confirmDebtPayment} className="space-y-4">
+              <div className="p-5 rounded-2xl" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}>
+                <div className="mb-4">
+                  <label className="block text-xs font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>Summa</label>
+                  <input
+                    type="text" inputMode="decimal"
+                    value={debtPaymentForm.amount}
+                    onChange={e => setDebtPaymentForm({ ...debtPaymentForm, amount: e.target.value })}
+                    className="w-full text-3xl font-bold p-2 bg-transparent outline-none"
+                    style={{ color: 'var(--accent-primary)', borderBottom: '2px solid var(--border-accent)' }}
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold mb-1" style={{ color: 'var(--text-secondary)' }}>Datums</label>
+                  <input type="date" value={debtPaymentForm.date} onChange={e => setDebtPaymentForm({ ...debtPaymentForm, date: e.target.value })} className="w-full p-2 rounded-lg outline-none font-medium" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                </div>
+              </div>
+              <button type="submit" className="w-full font-bold py-4 rounded-2xl active:scale-95 transition-all" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)', boxShadow: '0 4px 20px rgba(212, 168, 83, 0.3)' }}>
+                Apstiprināt Maksājumu
+              </button>
+            </form>
           </div>
         </div>
       )}

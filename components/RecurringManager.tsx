@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { Frequency, RecurringExpense } from '../types';
 import { parseAmount, getTodayStr, formatCurrency, formatDateLV } from '../utils';
+import { getCategoryIcon } from './CategoryManager';
 
 function parseLocalDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -117,7 +118,7 @@ const RecurringManager: React.FC = () => {
           <div className="grid grid-cols-2 gap-2">
             <input type="text" inputMode="decimal" placeholder="Summa" value={amount} onChange={e => setAmount(e.target.value)} className="p-2 rounded-lg outline-none" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} required />
             <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="p-2 rounded-lg outline-none" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} required>
-              {activeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {activeCategories.map(c => <option key={c.id} value={c.id}>{getCategoryIcon(c)} {c.name}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-2">

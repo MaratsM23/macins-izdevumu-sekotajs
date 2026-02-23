@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { TransactionType, Category, IncomeCategory } from '../types';
@@ -125,56 +125,84 @@ const AddTransactionForm: React.FC<Props> = ({ onSaveSuccess }) => {
     setError('');
   };
 
+  const handleSubmitRef = useRef<(() => Promise<void>) | undefined>(undefined);
+
   const handleSubmit = async () => {
-    if (isSubmitting) return;
-
-    const parsedAmount = parseFloat(amountStr);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setError('Ievadiet summu');
-      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      return;
-    }
-
-    if (!categoryId) {
-      setError('Izvēlieties kategoriju');
-      if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      return;
-    }
-
-    setIsSubmitting(true);
     try {
-      const data = {
-        id: crypto.randomUUID(),
-        amount: parsedAmount,
-        currency: 'EUR',
-        date: getTodayStr(),
-        categoryId,
-        note: note.trim() || undefined,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
+      if (isSubmitting) return;
 
-      if (type === 'expense') {
-        await db.expenses.add(data);
-      } else {
-        await db.incomes.add(data);
+      console.log('[Submit] type:', type, 'amountStr:', amountStr, 'categoryId:', categoryId, 'note:', note);
+
+      const parsedAmount = parseFloat(amountStr);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        setError('Ievadiet summu');
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        return;
       }
 
-      if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+      if (!categoryId || typeof categoryId !== 'string' || categoryId.trim() === '') {
+        setError('Izvēlieties kategoriju');
+        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        return;
+      }
 
-      setAmountStr('0');
-      setNote('');
-      setTimeout(() => {
+      setIsSubmitting(true);
+      try {
+        const data = {
+          id: crypto.randomUUID(),
+          amount: parsedAmount,
+          currency: 'EUR',
+          date: getTodayStr(),
+          categoryId: categoryId.trim(),
+          note: note.trim() || undefined,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        console.log('[Submit] saving data:', data, 'to table:', type === 'expense' ? 'expenses' : 'incomes');
+
+        if (type === 'expense') {
+          await db.expenses.add(data);
+        } else {
+          await db.incomes.add(data);
+        }
+
+        if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+
+        setAmountStr('0');
+        setNote('');
+        setTimeout(() => {
+          setIsSubmitting(false);
+          onSaveSuccess();
+        }, 500);
+
+      } catch (err) {
+        console.error('[Submit] DB error:', err);
+        setError('Kļūda saglabājot');
         setIsSubmitting(false);
-        onSaveSuccess();
-      }, 500);
-
-    } catch (err) {
-      console.error(err);
-      setError('Kļūda saglabājot');
+      }
+    } catch (outerErr) {
+      console.error('[Submit] Unexpected error:', outerErr);
+      setError('Kļūda');
       setIsSubmitting(false);
     }
   };
+
+  // Keep ref in sync so the keydown listener always calls the latest version
+  handleSubmitRef.current = handleSubmit;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept when user is typing in the note input
+      if ((e.target as HTMLElement).tagName === 'INPUT') return;
+      if (e.key >= '0' && e.key <= '9') handleNumpadClick(e.key);
+      else if (e.key === '.') handleNumpadClick('.');
+      else if (e.key === 'Backspace') handleNumpadClick('backspace');
+      else if (e.key === 'Enter') handleSubmitRef.current?.();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const getEmojiForCategory = (cat: Category | IncomeCategory) => {
     return getCategoryIcon(cat as Category);
@@ -276,7 +304,7 @@ const AddTransactionForm: React.FC<Props> = ({ onSaveSuccess }) => {
         <div className="relative w-full max-w-xs group">
           <input
             type="text"
-            placeholder="Ātrā ievade (piem. '15 Rimi')"
+            placeholder="Piezīme (piem. 'Rimi, P.Brieža')"
             value={note}
             onChange={handleNoteChange}
             className="font-bold text-center text-lg py-3 px-10 rounded-2xl w-full outline-none transition-all"
@@ -341,7 +369,7 @@ const AddTransactionForm: React.FC<Props> = ({ onSaveSuccess }) => {
       </div>
 
       {/* Numpad Section */}
-      <div className="px-6 pb-8 z-20 relative" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+      <div className="px-6 pb-24 z-20 relative" style={{ backgroundColor: 'var(--bg-secondary)' }}>
         <div className="grid grid-cols-4 gap-3">
           <div className="col-span-3 grid grid-cols-3 gap-3">
             {padButtons.map((btn, i) => (

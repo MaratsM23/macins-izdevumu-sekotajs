@@ -161,11 +161,14 @@ const DebtManager: React.FC = () => {
           </div>
 
           {!editingId && (
-            <div className="flex items-center pt-2">
+            <div className="pt-2 space-y-1.5">
               <label className="flex items-center gap-3 cursor-pointer select-none">
                 <input type="checkbox" checked={createIncomeRecord} onChange={e => setCreateIncomeRecord(e.target.checked)} className="w-5 h-5 rounded" style={{ accentColor: 'var(--accent-primary)' }} />
-                <span className="text-xs font-bold leading-tight" style={{ color: 'var(--text-secondary)' }}>Reģistrēt kā ienākumu šodien?</span>
+                <span className="text-xs font-bold leading-tight" style={{ color: 'var(--text-secondary)' }}>Pievienot saņemto summu bilancei šodien?</span>
               </label>
+              <p className="text-[10px] leading-snug pl-8" style={{ color: 'var(--text-tertiary)' }}>
+                (Aizņēmuma summa tiks reģistrēta kā naudas ieplūde, bet nav uzskatāma par ienākumu — tā būs jāatdod)
+              </p>
             </div>
           )}
 
