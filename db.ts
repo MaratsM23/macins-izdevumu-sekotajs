@@ -1,6 +1,8 @@
 
 import Dexie, { type Table } from 'dexie';
 import { Expense, Category, RecurringExpense, Income, IncomeCategory, Debt } from './types';
+import { supabase, isSupabaseConfigured } from './supabase';
+import { camelToSnake } from './lib/columnMapping';
 
 export class AppDatabase extends Dexie {
   expenses!: Table<Expense>;
@@ -42,61 +44,60 @@ export class AppDatabase extends Dexie {
 
 export const db = new AppDatabase();
 
-export const DEFAULT_CATEGORIES: { name: string; icon: string }[] = [
-  { name: 'Pārtika', icon: '🛒' },
-  { name: 'Pusdienas', icon: '🍽️' },
-  { name: 'Kafejnīcas', icon: '☕' },
-  { name: 'Transports', icon: '🚌' },
-  { name: 'Car sharing', icon: '🚗' },
-  { name: 'Veselība', icon: '💊' },
-  { name: 'Abonementi', icon: '📱' },
-  { name: 'Izklaide', icon: '🍿' },
-  { name: 'Kompulsīvie pirkumi', icon: '🥺' },
-  { name: 'Alko', icon: '🍷' },
-  { name: 'Māja', icon: '🏠' },
-  { name: 'Bērni', icon: '🧸' },
-  { name: 'Dāvanas', icon: '🎁' },
-  { name: 'Kredīti', icon: '💳' },
-  { name: 'Līzings', icon: '📄' },
-  { name: 'Ieguldījumi', icon: '📈' },
-  { name: 'Uzkrājumi', icon: '💰' },
-  { name: 'Citi', icon: '📦' },
+export const DEFAULT_CATEGORIES: { name: string }[] = [
+  { name: '🛒 Pārtika' },
+  { name: '🚗 Transports' },
+  { name: '🏠 Mājoklis' },
+  { name: '🎉 Izklaide' },
+  { name: '👕 Apģērbs' },
+  { name: '💊 Veselība' },
+  { name: '📦 Cits' },
 ];
 
 export const DEFAULT_INCOME_CATEGORIES = [
-  'Alga',
-  'Komandējums',
-  'Bonuss',
-  'Dāvana',
-  'Pārdošana',
-  'Citi'
+  '💼 Alga',
+  '💰 Cits ienākums',
 ];
 
-export async function seedDatabase() {
+export async function seedDatabase(userId?: string) {
+  const now = Date.now();
+
   const catCount = await db.categories.count();
   if (catCount === 0) {
-    const categories: Category[] = DEFAULT_CATEGORIES.map((cat, index) => ({
+    const categories: Category[] = DEFAULT_CATEGORIES.map(cat => ({
       id: crypto.randomUUID(),
       name: cat.name,
-      icon: cat.icon,
-      sortOrder: index,
+      icon: null,
+      sortOrder: 0,
       isArchived: false,
-      isInvestment: ['Ieguldījumi', 'Uzkrājumi'].includes(cat.name),
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      isInvestment: false,
+      createdAt: now,
+      updatedAt: now,
     }));
     await db.categories.bulkAdd(categories);
+
+    if (userId && isSupabaseConfigured) {
+      const rows = categories.map(c => ({ ...camelToSnake(c), user_id: userId }));
+      const { error } = await supabase.from('categories').upsert(rows);
+      if (error) console.error('seedDatabase: categories upsert failed', error);
+    }
   }
 
   const incomeCatCount = await db.incomeCategories.count();
   if (incomeCatCount === 0) {
-    const categories: IncomeCategory[] = DEFAULT_INCOME_CATEGORIES.map(name => ({
+    const incomeCategories: IncomeCategory[] = DEFAULT_INCOME_CATEGORIES.map(name => ({
       id: crypto.randomUUID(),
       name,
       isArchived: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      createdAt: now,
+      updatedAt: now,
     }));
-    await db.incomeCategories.bulkAdd(categories);
+    await db.incomeCategories.bulkAdd(incomeCategories);
+
+    if (userId && isSupabaseConfigured) {
+      const rows = incomeCategories.map(c => ({ ...camelToSnake(c), user_id: userId }));
+      const { error } = await supabase.from('income_categories').upsert(rows);
+      if (error) console.error('seedDatabase: income_categories upsert failed', error);
+    }
   }
 }

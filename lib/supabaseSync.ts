@@ -4,7 +4,8 @@ import { TABLE_MAP, camelToSnake, mapRowsToLocal } from './columnMapping';
 
 // ─── State ───────────────────────────────────────────────────────────
 let currentUserId: string | null = null;
-let isSyncing = false;
+let isSyncing = false;      // suppresses Dexie hook pushes during sync
+let isSyncRunning = false;  // prevents concurrent syncFromSupabase() calls
 const hookUnsubscribers: (() => void)[] = [];
 
 // ─── Types ───────────────────────────────────────────────────────────
@@ -108,7 +109,7 @@ export function teardownSupabaseHooks(): void {
 export async function syncFromSupabase(): Promise<boolean> {
   if (!isSupabaseConfigured) return true;
 
-  if (isSyncing) {
+  if (isSyncRunning) {
     console.warn('syncFromSupabase: already running, skipping concurrent call');
     return true;
   }
@@ -116,6 +117,7 @@ export async function syncFromSupabase(): Promise<boolean> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return true;
 
+  isSyncRunning = true;
   isSyncing = true;
   try {
     // 1. Fetch ALL data from Supabase FIRST — do NOT touch local DB yet
@@ -176,6 +178,7 @@ export async function syncFromSupabase(): Promise<boolean> {
     return false;
   } finally {
     isSyncing = false;
+    isSyncRunning = false;
   }
 }
 

@@ -2,7 +2,7 @@
 export interface Category {
   id: string;
   name: string;
-  icon?: string;
+  icon?: string | null;
   sortOrder?: number;
   isArchived: boolean;
   isInvestment?: boolean;
@@ -27,7 +27,7 @@ export interface Transaction {
   amount: number;
   currency: string;
   date: string; // YYYY-MM-DD
-  categoryId: string;
+  categoryId: string | null;
   note?: string;
   debtId?: string; // Link to a debt record if this transaction is a repayment
   sourceCategoryId?: string; // Link to a Savings Category (Expense Cat) if this is a withdrawal

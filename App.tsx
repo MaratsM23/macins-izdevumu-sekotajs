@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Analytics } from '@vercel/analytics/react';
 import { TabType } from './types';
@@ -9,9 +9,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Auth from './components/Auth';
 import AddExpenseForm from './components/AddExpenseForm';
 import HistoryView from './components/History';
-import ReportsView from './components/Reports';
-import SettingsView from './components/Settings';
-import FinanceView from './components/FinanceView';
+const ReportsView  = lazy(() => import('./components/Reports'));
+const SettingsView = lazy(() => import('./components/Settings'));
+const FinanceView  = lazy(() => import('./components/FinanceView'));
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Onboarding from './components/Onboarding';
 import { db, seedDatabase } from './db';
@@ -74,8 +74,7 @@ const App: React.FC = () => {
           .select('*', { count: 'exact', head: true })
           .eq('user_id', session.user.id);
         if (catCount === 0) {
-          await seedDatabase();
-          await pushAllToSupabase(session.user.id);
+          await seedDatabase(session.user.id);
         }
 
         // One-time migration: if Supabase has no expenses but local does, push them
@@ -241,7 +240,9 @@ const App: React.FC = () => {
               transition={{ duration: 0.25, ease: "easeOut" }}
               className="w-full h-full p-5"
             >
-              {renderContent()}
+              <Suspense fallback={<div className="p-8 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Ielādē...</div>}>
+                {renderContent()}
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         )}

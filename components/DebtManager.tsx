@@ -82,7 +82,7 @@ const DebtManager: React.FC = () => {
       if (!expCat && cats.length > 0) expCat = cats.find(c => c.name === 'Citi') || cats[0];
       await db.expenses.add({
         id: crypto.randomUUID(), amount, currency: 'EUR', date: paymentDate,
-        categoryId: expCat?.id || '', debtId: payingDebt.id, // expCat always found (seeded), fallback '' is only local note: `Maksājums: ${payingDebt.title}`,
+        categoryId: expCat?.id || null, debtId: payingDebt.id, note: `Maksājums: ${payingDebt.title}`,
         createdAt: Date.now(), updatedAt: Date.now()
       });
       const newRemaining = payingDebt.remainingAmount - amount;
