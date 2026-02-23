@@ -17,7 +17,7 @@ interface SettingsProps {
 }
 
 const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail, onShowPrivacy }) => {
-  const [importError, setImportError] = useState('');
+  const [importProgress, setImportProgress] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -70,7 +70,6 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    // Reset input so same file can be re-selected after an error
     event.target.value = '';
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -93,43 +92,74 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
 
         if (!window.confirm('Uzmanību! Visi esošie dati tiks aizvietoti ar faila saturu. Turpināt?')) return;
 
-        // 3. Filter out malformed records — don't crash on bad data
-        const validExpenses    = data.expenses.filter((r: any) => r.id && r.amount != null && r.date);
-        const validIncomes     = data.incomes.filter((r: any) => r.id && r.amount != null && r.date);
-        const validCategories  = data.categories.filter((r: any) => r.id && r.name);
-        const validIncomeCats  = data.incomeCategories.filter((r: any) => r.id && r.name);
-        const validRecurring   = data.recurringExpenses.filter((r: any) => r.id && r.amount != null);
-        const validDebts       = data.debts.filter((r: any) => r.id && r.title);
-
-        // 4. Clear Supabase first, then replace local DB
-        await clearSupabaseTables(['expenses', 'incomes', 'categories', 'income_categories', 'recurring_expenses', 'debts']);
-
-        await (db as any).transaction('rw', [db.expenses, db.incomes, db.categories, db.incomeCategories, db.recurringExpenses, db.debts], async () => {
-          await db.expenses.clear();
-          await db.incomes.clear();
-          await db.categories.clear();
-          await db.incomeCategories.clear();
-          await db.recurringExpenses.clear();
-          await db.debts.clear();
-          await db.expenses.bulkAdd(validExpenses, { allKeys: true }).catch(() => {});
-          await db.incomes.bulkAdd(validIncomes, { allKeys: true }).catch(() => {});
-          await db.categories.bulkAdd(validCategories, { allKeys: true }).catch(() => {});
-          await db.incomeCategories.bulkAdd(validIncomeCats, { allKeys: true }).catch(() => {});
-          await db.recurringExpenses.bulkAdd(validRecurring, { allKeys: true }).catch(() => {});
-          await db.debts.bulkAdd(validDebts, { allKeys: true }).catch(() => {});
+        // 3. Normalize empty-string foreign keys to null
+        const normalizeFK = (obj: any) => ({
+          ...obj,
+          categoryId: obj.categoryId === '' ? null : (obj.categoryId ?? null),
         });
 
-        // 5. Push to Supabase — warn but don't crash if it fails
+        // 4. Filter malformed records + normalize per table
+        const validExpenses   = data.expenses.filter((r: any) => r.id && r.amount != null && r.date).map(normalizeFK);
+        const validIncomes    = data.incomes.filter((r: any) => r.id && r.amount != null && r.date).map(normalizeFK);
+        const validCategories = data.categories.filter((r: any) => r.id && r.name).map((c: any) => ({
+          ...c,
+          icon: c.icon ?? null,
+          sortOrder: c.sortOrder ?? c.sort_order ?? 0,
+        }));
+        const validIncomeCats = data.incomeCategories.filter((r: any) => r.id && r.name);
+        const validRecurring  = data.recurringExpenses.filter((r: any) => r.id && r.amount != null);
+        const validDebts      = data.debts.filter((r: any) => r.id && r.title).map(normalizeFK);
+
+        const totalRecords = validExpenses.length + validIncomes.length + validCategories.length +
+                             validIncomeCats.length + validRecurring.length + validDebts.length;
+
+        const BATCH_SIZE = 200;
+
+        // 5. Clear Supabase
+        setImportProgress('Notīra serverī...');
+        await clearSupabaseTables(['expenses', 'incomes', 'categories', 'income_categories', 'recurring_expenses', 'debts']);
+
+        // 6. Clear local DB
+        setImportProgress('Notīra lokāli...');
+        await db.expenses.clear();
+        await db.incomes.clear();
+        await db.categories.clear();
+        await db.incomeCategories.clear();
+        await db.recurringExpenses.clear();
+        await db.debts.clear();
+
+        // 7. Batched bulkPut with progress
+        let imported = 0;
+        const batchInsert = async (table: any, records: any[], label: string) => {
+          for (let i = 0; i < records.length; i += BATCH_SIZE) {
+            const batch = records.slice(i, i + BATCH_SIZE);
+            await table.bulkPut(batch);
+            imported += batch.length;
+            setImportProgress(`Importē... ${imported} / ${totalRecords} (${label})`);
+          }
+        };
+
+        await batchInsert(db.categories, validCategories, 'kategorijas');
+        await batchInsert(db.incomeCategories, validIncomeCats, 'ienākumu kategorijas');
+        await batchInsert(db.expenses, validExpenses, 'izdevumi');
+        await batchInsert(db.incomes, validIncomes, 'ienākumi');
+        await batchInsert(db.recurringExpenses, validRecurring, 'regulārie');
+        await batchInsert(db.debts, validDebts, 'parādi');
+
+        // 8. Push to Supabase — warn but don't crash if it fails
+        setImportProgress('Sinhronizē ar serveri...');
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (session) await pushAllToSupabase(session.user.id);
         } catch {
-          alert('Dati saglabāti lokāli, sinhronizācija neizdevās.');
+          alert('Dati saglabāti lokāli. Sinhronizācija ar serveri neizdevās.');
         }
 
+        setImportProgress(null);
         alert(`Imports veiksmīgs: ${validExpenses.length} izdevumi, ${validIncomes.length} ienākumi ielādēti.`);
         window.location.reload();
       } catch (err) {
+        setImportProgress(null);
         const msg = err instanceof Error ? err.message : 'Nezināma kļūda';
         alert(`Imports neizdevās. Pārbaudi faila formātu.\n\n${msg}`);
       }
@@ -205,12 +235,11 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
             </button>
 
             <div className="relative group">
-              <button className="flex items-center justify-center gap-2 w-full p-4 rounded-2xl font-bold transition-all" style={{ backgroundColor: 'var(--bg-tertiary)', border: '2px dashed var(--border)', color: 'var(--text-secondary)' }}>
-                <span>Importēt Datus</span>
+              <button className="flex items-center justify-center gap-2 w-full p-4 rounded-2xl font-bold transition-all" style={{ backgroundColor: 'var(--bg-tertiary)', border: '2px dashed var(--border)', color: importProgress ? 'var(--text-tertiary)' : 'var(--text-secondary)', opacity: importProgress ? 0.6 : 1 }}>
+                <span>{importProgress ?? 'Importēt Datus'}</span>
               </button>
-              <input type="file" accept=".json" onChange={handleImport} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+              {!importProgress && <input type="file" accept=".json" onChange={handleImport} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />}
             </div>
-            {importError && <p className="text-center text-xs font-black p-3 rounded-xl tracking-wide uppercase" style={{ backgroundColor: 'rgba(248, 113, 113, 0.1)', color: 'var(--danger)', border: '1px solid rgba(248, 113, 113, 0.2)' }}>{importError}</p>}
           </div>
         </motion.section>
 

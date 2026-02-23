@@ -1,5 +1,6 @@
 import { db } from './db';
-import { RecurringExpense, Frequency, Expense } from './types';
+import { supabase } from './supabase';
+import { Frequency, Expense } from './types';
 import { getTodayStr } from './utils';
 
 // Helper to parse YYYY-MM-DD into a local Date object
@@ -16,84 +17,115 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function advanceDate(date: Date, frequency: Frequency): Date {
-  const newDate = new Date(date);
+// Returns true if a record was already generated for the current period
+function isAlreadyGeneratedForPeriod(
+  lastGenDateStr: string,
+  frequency: Frequency,
+  today: Date
+): boolean {
+  const last = parseLocalDate(lastGenDateStr);
   switch (frequency) {
     case 'daily':
-      newDate.setDate(newDate.getDate() + 1);
-      break;
-    case 'weekly':
-      newDate.setDate(newDate.getDate() + 7);
-      break;
+      return formatLocalDate(last) === formatLocalDate(today);
+    case 'weekly': {
+      // Same Sunday-anchored calendar week as today
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay());
+      weekStart.setHours(0, 0, 0, 0);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
+      return last >= weekStart && last <= weekEnd;
+    }
     case 'monthly':
-      newDate.setMonth(newDate.getMonth() + 1);
-      break;
+      return (
+        last.getMonth() === today.getMonth() &&
+        last.getFullYear() === today.getFullYear()
+      );
     case 'yearly':
-      newDate.setFullYear(newDate.getFullYear() + 1);
-      break;
+      return last.getFullYear() === today.getFullYear();
   }
-  return newDate;
 }
 
-export async function processRecurringExpenses() {
+// Generates at most ONE expense per recurring template per period.
+// Never backfills history — only creates a record for the current period.
+export async function processRecurringExpenses(): Promise<void> {
   const todayStr = getTodayStr();
   const todayDate = parseLocalDate(todayStr);
-  
-  // Fixed: Use toArray() and filter in JS instead of .where('isActive').equals(1).
-  // This prevents "DataError: The parameter is not a valid key" which can occur
-  // if the environment doesn't support boolean keys in IndexedDB or if there's a type mismatch.
+
   const allTemplates = await db.recurringExpenses.toArray();
   const templates = allTemplates.filter(t => t.isActive);
 
   for (const template of templates) {
-    const newExpenses: Expense[] = [];
-    let lastGeneratedDateStr = template.lastGeneratedDate;
-    
-    // Case 1: Never generated before
-    if (!lastGeneratedDateStr) {
-      const start = parseLocalDate(template.startDate);
-      // Only generate if start date is today or in the past
-      if (start <= todayDate) {
-        newExpenses.push(createExpenseObject(template, template.startDate, true));
-        lastGeneratedDateStr = template.startDate;
-      } else {
-        continue; // Future start date, skip
-      }
+    // Don't generate if the start date hasn't arrived yet
+    if (parseLocalDate(template.startDate) > todayDate) continue;
+
+    // Don't generate if already done for this period
+    if (
+      template.lastGeneratedDate &&
+      isAlreadyGeneratedForPeriod(template.lastGeneratedDate, template.frequency, todayDate)
+    ) {
+      continue;
     }
 
-    // Case 2: Fill gaps until today
-    // Calculate the next expected date based on the LAST generated date
-    let nextOccurrenceDate = advanceDate(parseLocalDate(lastGeneratedDateStr), template.frequency);
-    
-    while (nextOccurrenceDate <= todayDate) {
-      const dateStr = formatLocalDate(nextOccurrenceDate);
-      newExpenses.push(createExpenseObject(template, dateStr, true));
-      lastGeneratedDateStr = dateStr;
-      nextOccurrenceDate = advanceDate(nextOccurrenceDate, template.frequency);
-    }
+    // Generate exactly ONE expense for today
+    const expense: Expense = {
+      id: crypto.randomUUID(),
+      amount: template.amount,
+      currency: 'EUR',
+      date: todayStr,
+      categoryId: template.categoryId,
+      note: `[Auto] ${template.note || ''}`.trim(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
 
-    if (newExpenses.length > 0) {
-      // Use individual add() calls so Dexie creating hooks fire
-      // and each expense gets pushed to Supabase automatically
-      for (const expense of newExpenses) {
-        await db.expenses.add(expense);
-      }
-      await db.recurringExpenses.update(template.id, {
-        lastGeneratedDate: lastGeneratedDateStr
-      });
-    }
+    // Individual add() so the Dexie creating hook fires and syncs to Supabase
+    await db.expenses.add(expense);
+    await db.recurringExpenses.update(template.id, { lastGeneratedDate: todayStr });
   }
 }
 
-function createExpenseObject(template: RecurringExpense, date: string, isAuto: boolean): Expense {
-  return {
-    id: crypto.randomUUID(),
-    amount: template.amount,
-    currency: 'EUR',
-    date: date,
-    categoryId: template.categoryId,
-    note: `[${isAuto ? 'Auto' : 'Manuāls'}] ${template.note || ''}`.trim(),
-    createdAt: Date.now(),
-    updatedAt: Date.now()
-  };
+// ─── One-time cleanup ────────────────────────────────────────────────
+// Removes stale [Auto] expenses older than 1 month that were generated
+// by the old backfill logic, and resets lastGeneratedDate to today so
+// processRecurringExpenses doesn't immediately re-generate on the next run.
+// Guarded by a localStorage flag — runs exactly once per device.
+export async function cleanupAutoGeneratedExpenses(): Promise<void> {
+  const CLEANUP_KEY = 'recurringCleanupDone';
+  if (localStorage.getItem(CLEANUP_KEY)) return;
+
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 1);
+  const cutoffStr = formatLocalDate(cutoff);
+
+  // Collect IDs of stale [Auto] expenses
+  const toDelete = (await db.expenses
+    .filter(e => Boolean(e.note?.startsWith('[Auto]')) && e.date < cutoffStr)
+    .primaryKeys()) as string[];
+
+  if (toDelete.length > 0) {
+    // Remove from local DB (bulkDelete skips hooks intentionally — we handle Supabase below)
+    await db.expenses.bulkDelete(toDelete);
+
+    // Remove from Supabase in batches of 100 (best-effort)
+    try {
+      for (let i = 0; i < toDelete.length; i += 100) {
+        const batch = toDelete.slice(i, i + 100);
+        await supabase.from('expenses').delete().in('id', batch);
+      }
+    } catch {
+      // Supabase delete failed — local data is already clean, Supabase will reconcile on next full sync
+    }
+  }
+
+  // Reset lastGeneratedDate to today for all recurring expenses.
+  // Individual update() calls so the Dexie updating hook fires and syncs each change to Supabase.
+  const todayStr = getTodayStr();
+  const allRecurring = await db.recurringExpenses.toArray();
+  for (const r of allRecurring) {
+    await db.recurringExpenses.update(r.id, { lastGeneratedDate: todayStr });
+  }
+
+  localStorage.setItem(CLEANUP_KEY, '1');
 }
