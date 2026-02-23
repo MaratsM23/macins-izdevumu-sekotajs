@@ -14,7 +14,7 @@ import SettingsView from './components/Settings';
 import FinanceView from './components/FinanceView';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Onboarding from './components/Onboarding';
-import { db } from './db';
+import { db, seedDatabase } from './db';
 import { setupSupabaseHooks, teardownSupabaseHooks, syncFromSupabase, pushAllToSupabase, retrySyncQueue } from './lib/supabaseSync';
 import { processRecurringExpenses } from './recurringLogic';
 
@@ -65,16 +65,29 @@ const App: React.FC = () => {
     const initSync = async (session: Session) => {
       try {
         await syncFromSupabase();
-        // One-time migration: if Supabase is empty but local has data, push it
-        const { count } = await supabase
+
+        // New user: Supabase has no categories → seed locally then push to Supabase
+        const { count: catCount } = await supabase
+          .from('categories')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', session.user.id);
+        if (catCount === 0) {
+          await seedDatabase();
+          await pushAllToSupabase(session.user.id);
+        }
+
+        // One-time migration: if Supabase has no expenses but local does, push them
+        const { count: expCount } = await supabase
           .from('expenses')
-          .select('*', { count: 'exact', head: true });
-        if (count === 0) {
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', session.user.id);
+        if (expCount === 0) {
           const localCount = await db.expenses.count();
           if (localCount > 0) {
             await pushAllToSupabase(session.user.id);
           }
         }
+
         setupSupabaseHooks(session.user.id);
         void retrySyncQueue();
         // Generate any pending recurring expenses (hooks are active, so they sync to Supabase)
