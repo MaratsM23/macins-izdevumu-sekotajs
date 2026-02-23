@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { db } from '../db';
 import { supabase } from '../supabase';
-import { downloadFile, validateImportData } from '../utils';
+import { downloadFile } from '../utils';
 import { pushAllToSupabase, clearSupabaseTables } from '../lib/supabaseSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import CategoryManager from './CategoryManager';
@@ -70,30 +70,69 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    // Reset input so same file can be re-selected after an error
+    event.target.value = '';
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const json = JSON.parse(e.target?.result as string);
-        if (validateImportData(json)) {
-          if (window.confirm('Uzmanību! Visi esošie dati tiks aizvietoti ar faila saturu. Turpināt?')) {
-            await clearSupabaseTables(['expenses', 'incomes', 'categories', 'income_categories', 'recurring_expenses', 'debts']);
-            await (db as any).transaction('rw', [db.expenses, db.incomes, db.categories, db.incomeCategories, db.recurringExpenses, db.debts], async () => {
-              await db.expenses.clear(); await db.incomes.clear(); await db.categories.clear();
-              await db.incomeCategories.clear(); await db.recurringExpenses.clear(); await db.debts.clear();
-              await db.expenses.bulkAdd(json.expenses || []);
-              if (json.incomes) await db.incomes.bulkAdd(json.incomes);
-              await db.categories.bulkAdd(json.categories || []);
-              if (json.incomeCategories) await db.incomeCategories.bulkAdd(json.incomeCategories || []);
-              if (json.recurringExpenses) await db.recurringExpenses.bulkAdd(json.recurringExpenses || []);
-              if (json.debts) await db.debts.bulkAdd(json.debts || []);
-            });
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) await pushAllToSupabase(session.user.id);
-            alert('Dati veiksmīgi importēti!');
-            window.location.reload();
+        // 1. Parse JSON
+        let data: any;
+        try {
+          data = JSON.parse(e.target?.result as string);
+        } catch {
+          throw new Error('Fails nav derīgs JSON.');
+        }
+
+        // 2. Validate required top-level keys
+        const required = ['expenses', 'incomes', 'categories', 'incomeCategories', 'recurringExpenses', 'debts'];
+        for (const key of required) {
+          if (!data[key] || !Array.isArray(data[key])) {
+            throw new Error(`Trūkst vai nepareizs lauks: "${key}"`);
           }
-        } else { setImportError('Nepareizs faila formāts.'); }
-      } catch (err) { setImportError('Kļūda lasot failu.'); }
+        }
+
+        if (!window.confirm('Uzmanību! Visi esošie dati tiks aizvietoti ar faila saturu. Turpināt?')) return;
+
+        // 3. Filter out malformed records — don't crash on bad data
+        const validExpenses    = data.expenses.filter((r: any) => r.id && r.amount != null && r.date);
+        const validIncomes     = data.incomes.filter((r: any) => r.id && r.amount != null && r.date);
+        const validCategories  = data.categories.filter((r: any) => r.id && r.name);
+        const validIncomeCats  = data.incomeCategories.filter((r: any) => r.id && r.name);
+        const validRecurring   = data.recurringExpenses.filter((r: any) => r.id && r.amount != null);
+        const validDebts       = data.debts.filter((r: any) => r.id && r.title);
+
+        // 4. Clear Supabase first, then replace local DB
+        await clearSupabaseTables(['expenses', 'incomes', 'categories', 'income_categories', 'recurring_expenses', 'debts']);
+
+        await (db as any).transaction('rw', [db.expenses, db.incomes, db.categories, db.incomeCategories, db.recurringExpenses, db.debts], async () => {
+          await db.expenses.clear();
+          await db.incomes.clear();
+          await db.categories.clear();
+          await db.incomeCategories.clear();
+          await db.recurringExpenses.clear();
+          await db.debts.clear();
+          await db.expenses.bulkAdd(validExpenses, { allKeys: true }).catch(() => {});
+          await db.incomes.bulkAdd(validIncomes, { allKeys: true }).catch(() => {});
+          await db.categories.bulkAdd(validCategories, { allKeys: true }).catch(() => {});
+          await db.incomeCategories.bulkAdd(validIncomeCats, { allKeys: true }).catch(() => {});
+          await db.recurringExpenses.bulkAdd(validRecurring, { allKeys: true }).catch(() => {});
+          await db.debts.bulkAdd(validDebts, { allKeys: true }).catch(() => {});
+        });
+
+        // 5. Push to Supabase — warn but don't crash if it fails
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) await pushAllToSupabase(session.user.id);
+        } catch {
+          alert('Dati saglabāti lokāli, sinhronizācija neizdevās.');
+        }
+
+        alert(`Imports veiksmīgs: ${validExpenses.length} izdevumi, ${validIncomes.length} ienākumi ielādēti.`);
+        window.location.reload();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Nezināma kļūda';
+        alert(`Imports neizdevās. Pārbaudi faila formātu.\n\n${msg}`);
+      }
     };
     reader.readAsText(file);
   };
