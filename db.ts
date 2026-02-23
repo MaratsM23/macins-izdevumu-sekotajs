@@ -28,6 +28,15 @@ export class AppDatabase extends Dexie {
       recurringExpenses: 'id, categoryId, isActive',
       debts: 'id, isPaidOff'
     });
+    (this as any).version(9).stores({
+      expenses: 'id, date, categoryId, debtId',
+      incomes: 'id, date, categoryId, sourceCategoryId',
+      categories: 'id, name, isArchived, isInvestment, sortOrder',
+      incomeCategories: 'id, name, isArchived',
+      recurringExpenses: 'id, categoryId, isActive',
+      debts: 'id, isPaidOff',
+      _syncQueue: 'id, table, failedAt'
+    });
   }
 }
 

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { db } from '../db';
 import { supabase } from '../supabase';
 import { downloadFile, validateImportData } from '../utils';
+import { pushAllToSupabase, clearSupabaseTables } from '../lib/supabaseSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import CategoryManager from './CategoryManager';
 import IncomeCategoryManager from './IncomeCategoryManager';
@@ -33,6 +34,39 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
     downloadFile(JSON.stringify(data, null, 2), `macins-backup-${new Date().toISOString().split('T')[0]}.json`, 'application/json');
   };
 
+  const handleExportCSV = async () => {
+    const expenses = await db.expenses.toArray();
+    const incomes = await db.incomes.toArray();
+    const categories = await db.categories.toArray();
+    const incomeCategories = await db.incomeCategories.toArray();
+
+    const catMap = Object.fromEntries(categories.map(c => [c.id, c.name]));
+    const incCatMap = Object.fromEntries(incomeCategories.map(c => [c.id, c.name]));
+
+    const rows = [
+      ['Tips', 'Datums', 'Summa', 'Valūta', 'Kategorija', 'Piezīme'],
+      ...expenses.map(e => [
+        'Izdevums',
+        e.date,
+        String(e.amount),
+        e.currency || 'EUR',
+        catMap[e.categoryId] || '',
+        (e.note || '').replace(/"/g, '""'),
+      ]),
+      ...incomes.map(i => [
+        'Ienākums',
+        i.date,
+        String(i.amount),
+        i.currency || 'EUR',
+        incCatMap[i.categoryId] || '',
+        (i.note || '').replace(/"/g, '""'),
+      ]),
+    ];
+
+    const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+    downloadFile('\uFEFF' + csv, `macins-dati-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8');
+  };
+
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -42,6 +76,7 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
         const json = JSON.parse(e.target?.result as string);
         if (validateImportData(json)) {
           if (window.confirm('Uzmanību! Visi esošie dati tiks aizvietoti ar faila saturu. Turpināt?')) {
+            await clearSupabaseTables(['expenses', 'incomes', 'categories', 'income_categories', 'recurring_expenses', 'debts']);
             await (db as any).transaction('rw', [db.expenses, db.incomes, db.categories, db.incomeCategories, db.recurringExpenses, db.debts], async () => {
               await db.expenses.clear(); await db.incomes.clear(); await db.categories.clear();
               await db.incomeCategories.clear(); await db.recurringExpenses.clear(); await db.debts.clear();
@@ -52,6 +87,8 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
               if (json.recurringExpenses) await db.recurringExpenses.bulkAdd(json.recurringExpenses || []);
               if (json.debts) await db.debts.bulkAdd(json.debts || []);
             });
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) await pushAllToSupabase(session.user.id);
             alert('Dati veiksmīgi importēti!');
             window.location.reload();
           }
@@ -63,6 +100,7 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
 
   const handleClearHistoryOnly = async () => {
     if (window.confirm('Vai dzēst VISU darījumu vēsturi? Kategorijas un regulārie maksājumi saglabāsies.')) {
+      await clearSupabaseTables(['expenses', 'incomes', 'debts']);
       await Promise.all([db.expenses.clear(), db.incomes.clear(), db.debts.clear()]);
       await db.recurringExpenses.toCollection().modify({ lastGeneratedDate: undefined });
       alert('Vēsture notīrīta!');
@@ -72,6 +110,7 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
 
   const handleFullReset = async () => {
     if (window.confirm('DANGER: Vai tiešām dzēst PILNĪGI VISUS datus?')) {
+      await clearSupabaseTables(['expenses', 'incomes', 'categories', 'income_categories', 'recurring_expenses', 'debts']);
       await Promise.all([db.expenses.clear(), db.incomes.clear(), db.categories.clear(), db.incomeCategories.clear(), db.recurringExpenses.clear(), db.debts.clear()]);
       window.location.reload();
     }
@@ -119,6 +158,11 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
             <button onClick={handleExportJSON} className="flex items-center justify-center gap-2 w-full p-4 rounded-2xl font-bold active:scale-[0.98] transition-all" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
               <span>Eksportēt Datus (Backup)</span>
               <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>JSON</span>
+            </button>
+
+            <button onClick={handleExportCSV} className="flex items-center justify-center gap-2 w-full p-4 rounded-2xl font-bold active:scale-[0.98] transition-all" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+              <span>Eksportēt Darījumus</span>
+              <span className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>CSV</span>
             </button>
 
             <div className="relative group">

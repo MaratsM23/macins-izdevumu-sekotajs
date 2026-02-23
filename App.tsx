@@ -15,6 +15,7 @@ import FinanceView from './components/FinanceView';
 import PrivacyPolicy from './components/PrivacyPolicy';
 import Onboarding from './components/Onboarding';
 import { db } from './db';
+import { setupSupabaseHooks, teardownSupabaseHooks, syncFromSupabase, pushAllToSupabase, retrySyncQueue } from './lib/supabaseSync';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('add');
@@ -59,14 +60,34 @@ const App: React.FC = () => {
       }, 500);
     }
 
+    const initSync = async (session: Session) => {
+      await syncFromSupabase();
+      // One-time migration: if Supabase is empty but local has data, push it
+      const { count } = await supabase
+        .from('expenses')
+        .select('*', { count: 'exact', head: true });
+      if (count === 0) {
+        const localCount = await db.expenses.count();
+        if (localCount > 0) {
+          await pushAllToSupabase(session.user.id);
+        }
+      }
+      setupSupabaseHooks(session.user.id);
+      void retrySyncQueue();
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) void initSync(session);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
+      if (event === 'SIGNED_IN' && session) {
+        await initSync(session);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -101,6 +122,7 @@ const App: React.FC = () => {
   }
 
   const handleLogout = () => {
+    teardownSupabaseHooks();
     if (!isDemoMode) {
       supabase.auth.signOut().catch(() => {});
     }
