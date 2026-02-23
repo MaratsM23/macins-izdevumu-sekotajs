@@ -61,7 +61,7 @@ export interface Debt {
   remainingAmount: number; // Current balance
   monthlyPayment: number; // Minimum or expected monthly payment
   dueDateDay: number; // Day of month (1-31)
-  categoryId: string; // Usually 'Kredīti'
+  categoryId?: string; // Usually 'Kredīti', optional — null-safe for Supabase FK
   isPaidOff: boolean;
   createdAt: number;
   updatedAt: number;

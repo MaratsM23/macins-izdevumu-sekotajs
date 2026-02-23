@@ -105,11 +105,16 @@ export function teardownSupabaseHooks(): void {
 }
 
 // ─── Sync FROM Supabase (login pull) ────────────────────────────────
-export async function syncFromSupabase(): Promise<void> {
-  if (!isSupabaseConfigured) return;
+export async function syncFromSupabase(): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+
+  if (isSyncing) {
+    console.warn('syncFromSupabase: already running, skipping concurrent call');
+    return true;
+  }
 
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return;
+  if (!session) return true;
 
   isSyncing = true;
   try {
@@ -165,8 +170,10 @@ export async function syncFromSupabase(): Promise<void> {
     if (debtsRes.data?.length) await db.debts.bulkPut(mapRowsToLocal(debtsRes.data) as any);
 
     console.log('Sync from Supabase complete');
+    return true;
   } catch (error) {
     console.error('Error syncing from Supabase:', error);
+    return false;
   } finally {
     isSyncing = false;
   }

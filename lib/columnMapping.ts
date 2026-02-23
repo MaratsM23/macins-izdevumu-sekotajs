@@ -29,7 +29,11 @@ const toCamel = (key: string): string =>
 export const camelToSnake = (obj: Record<string, any>): Record<string, any> => {
   const result: Record<string, any> = {};
   for (const key of Object.keys(obj)) {
-    result[toSnake(key)] = obj[key];
+    const val = obj[key];
+    // Skip undefined and empty strings — sending '' as a UUID FK column
+    // causes Postgres constraint violations
+    if (val === undefined || val === '') continue;
+    result[toSnake(key)] = val;
   }
   return result;
 };

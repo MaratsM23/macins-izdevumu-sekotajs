@@ -25,6 +25,7 @@ const App: React.FC = () => {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [syncOk, setSyncOk] = useState(true);
 
   // Check onboarding AFTER sync is complete (isInitializing becomes false)
   useEffect(() => {
@@ -64,7 +65,8 @@ const App: React.FC = () => {
 
     const initSync = async (session: Session) => {
       try {
-        await syncFromSupabase();
+        const ok = await syncFromSupabase();
+        setSyncOk(ok);
 
         // New user: Supabase has no categories → seed locally then push to Supabase
         const { count: catCount } = await supabase
@@ -208,8 +210,15 @@ const App: React.FC = () => {
         </motion.h1>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}>
-            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--success)', boxShadow: '0 0 8px rgba(74, 222, 128, 0.5)' }}></div>
-            <span className="text-[9px] font-bold tracking-wider" style={{ color: 'var(--text-secondary)' }}>SYNCED</span>
+            <div
+              className={syncOk ? 'w-1.5 h-1.5 rounded-full animate-pulse' : 'w-1.5 h-1.5 rounded-full'}
+              style={syncOk
+                ? { backgroundColor: 'var(--success)', boxShadow: '0 0 8px rgba(74, 222, 128, 0.5)' }
+                : { backgroundColor: 'var(--danger)', boxShadow: '0 0 8px rgba(248, 113, 113, 0.5)' }}
+            />
+            <span className="text-[9px] font-bold tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+              {syncOk ? 'SYNCED' : 'OFFLINE'}
+            </span>
           </div>
         </div>
       </header>
