@@ -60,7 +60,8 @@ const DebtManager: React.FC = () => {
     const parsedMonthly = hasInstallments ? parseAmount(monthlyPayment) : 0;
     const parsedRemaining = remainingAmount ? parseAmount(remainingAmount) : parsedTotal;
 
-    if (!title || parsedTotal <= 0) return;
+    if (!title.trim() || parsedTotal <= 0 || parsedMonthly < 0 || parsedRemaining < 0) return;
+    if (parsedRemaining > parsedTotal) return;
 
     try {
       const debtData = {
@@ -124,7 +125,7 @@ const DebtManager: React.FC = () => {
     if (!payingDebt) return;
 
     const amount = parseAmount(paymentAmount);
-    if (amount <= 0) return;
+    if (amount <= 0 || amount > payingDebt.remainingAmount) return;
 
     try {
       const cats = await db.categories.toArray();

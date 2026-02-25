@@ -78,7 +78,7 @@ const HistoryView: React.FC = () => {
     // Get yesterday date string
     const yDate = new Date();
     yDate.setDate(yDate.getDate() - 1);
-    const yesterday = yDate.toISOString().split('T')[0];
+    const yesterday = `${yDate.getFullYear()}-${String(yDate.getMonth() + 1).padStart(2, '0')}-${String(yDate.getDate()).padStart(2, '0')}`;
 
     filteredTransactions.forEach(t => {
       let key = t.date;

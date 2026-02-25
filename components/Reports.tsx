@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../db';
 import { formatCurrency, formatDateLV, getTodayStr, parseAmount } from '../utils';
-import { Transaction } from '../types';
+import { RecurringExpense, Transaction } from '../types';
 import EditExpenseModal from './EditExpenseModal';
 
 // Warm/Earth Tone Palette
@@ -29,7 +29,16 @@ const ReportsView: React.FC = () => {
   const [showAllTrends, setShowAllTrends] = useState(false);
 
   // State for managing bills
-  const [selectedBill, setSelectedBill] = useState<any | null>(null);
+  type BillStatusItem = RecurringExpense & {
+    categoryName: string;
+    expectedDateStr: string;
+    expectedDay: number;
+    isPaid: boolean;
+    matchedTransaction?: Transaction;
+    isMarkedAsPaid: boolean;
+  };
+
+  const [selectedBill, setSelectedBill] = useState<BillStatusItem | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   // State for paying a bill (Manual Entry)
@@ -251,11 +260,14 @@ const ReportsView: React.FC = () => {
   const pendingBillsAmount = billStatus.filter(b => !b.isPaid).reduce((sum, b) => sum + b.amount, 0);
 
   const pendingDebtAmount = useMemo(() => {
-    const today = new Date();
-    if (selectedMonth > today && selectedMonth.getMonth() !== today.getMonth()) {
+    const monthKey = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+    const selectedKey = monthKey(selectedMonth);
+    const currentKey = monthKey(new Date());
+
+    if (selectedKey > currentKey) {
       return debtStatus.reduce((sum, d) => sum + d.monthlyPayment, 0);
     }
-    if (selectedMonth < today && selectedMonth.getMonth() !== today.getMonth()) {
+    if (selectedKey < currentKey) {
       return 0;
     }
     return debtStatus.filter(d => !d.isPaid).reduce((sum, d) => sum + d.monthlyPayment, 0);
@@ -328,7 +340,7 @@ const ReportsView: React.FC = () => {
     setViewCategory(null);
   };
 
-  const openPaymentModal = (bill: any) => {
+  const openPaymentModal = (bill: BillStatusItem) => {
     setSelectedBill(bill);
     setPaymentForm({
       amount: bill.amount.toString(),
@@ -377,9 +389,11 @@ const ReportsView: React.FC = () => {
     setSelectedBill(null);
   };
 
-  const markBillAsUnpaid = async (billId: string) => {
+  const markBillAsUnpaid = async (bill: BillStatusItem) => {
     if (window.confirm('Vai tiešām atzīmēt kā nesamaksātu?')) {
-      await db.recurringExpenses.update(billId, { lastGeneratedDate: '1970-01-01' });
+      const expectedDate = parseLocalDate(bill.expectedDateStr);
+      expectedDate.setMonth(expectedDate.getMonth() - 1);
+      await db.recurringExpenses.update(bill.id, { lastGeneratedDate: formatLocalDate(expectedDate) });
       setSelectedBill(null);
     }
   };
@@ -897,7 +911,7 @@ const ReportsView: React.FC = () => {
                   )}
 
                   <button
-                    onClick={() => markBillAsUnpaid(selectedBill.id)}
+                    onClick={() => markBillAsUnpaid(selectedBill)}
                     className="w-full text-stone-400 font-bold py-3 rounded-xl hover:text-red-500 transition-colors text-xs"
                   >
                     Atzīmēt kā nesamaksātu
