@@ -4,7 +4,7 @@ import { db } from '../db';
 import { TransactionType, Category, IncomeCategory } from '../types';
 import { getTodayStr, formatCurrency, getRemainingDaysInMonth } from '../utils';
 import { getCategoryIcon } from './CategoryManager';
-import { Check, X, Delete, Sparkles } from 'lucide-react';
+import { Check, Delete, Sparkles } from 'lucide-react';
 
 interface Props {
   onSaveSuccess: () => void;
@@ -17,6 +17,7 @@ const AddTransactionForm: React.FC<Props> = ({ onSaveSuccess }) => {
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const submitTimeoutRef = useRef<number | null>(null);
 
   const expenseCategories = useLiveQuery(() => db.categories.toArray()) || [];
   const incomeCategories = useLiveQuery(() => db.incomeCategories.toArray()) || [];
@@ -93,6 +94,14 @@ const AddTransactionForm: React.FC<Props> = ({ onSaveSuccess }) => {
       setCategoryId(activeCategories[0].id);
     }
   }, [type, activeCategories.length, categoryId]);
+
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current) {
+        window.clearTimeout(submitTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleNumpadClick = (val: string) => {
     if (navigator.vibrate) navigator.vibrate(10);
@@ -171,7 +180,7 @@ const AddTransactionForm: React.FC<Props> = ({ onSaveSuccess }) => {
 
         setAmountStr('0');
         setNote('');
-        setTimeout(() => {
+        submitTimeoutRef.current = window.setTimeout(() => {
           setIsSubmitting(false);
           onSaveSuccess();
         }, 500);

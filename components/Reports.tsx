@@ -176,11 +176,14 @@ const ReportsView: React.FC = () => {
   const pendingBillsAmount = billStatus.filter(b => !b.isPaid).reduce((sum, b) => sum + b.amount, 0);
 
   const pendingDebtAmount = useMemo(() => {
-    const today = new Date();
-    if (selectedMonth > today && selectedMonth.getMonth() !== today.getMonth()) {
+    const monthKey = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+    const selectedKey = monthKey(selectedMonth);
+    const currentKey = monthKey(new Date());
+
+    if (selectedKey > currentKey) {
       return debtStatus.reduce((sum, d) => sum + d.monthlyPayment, 0);
     }
-    if (selectedMonth < today && selectedMonth.getMonth() !== today.getMonth()) return 0;
+    if (selectedKey < currentKey) return 0;
     return debtStatus.filter(d => !d.isPaid).reduce((sum, d) => sum + d.monthlyPayment, 0);
   }, [debtStatus, selectedMonth]);
 

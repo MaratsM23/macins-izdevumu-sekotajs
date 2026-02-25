@@ -48,7 +48,8 @@ const DebtManager: React.FC = () => {
     const parsedTotal = parseAmount(totalAmount);
     const parsedMonthly = hasInstallments ? parseAmount(monthlyPayment) : 0;
     const parsedRemaining = remainingAmount ? parseAmount(remainingAmount) : parsedTotal;
-    if (!title || parsedTotal <= 0) return;
+    if (!title.trim() || parsedTotal <= 0 || parsedMonthly < 0 || parsedRemaining < 0) return;
+    if (parsedRemaining > parsedTotal) return;
     setFormError(null);
     try {
       const debtData = {
@@ -92,7 +93,7 @@ const DebtManager: React.FC = () => {
     e.preventDefault();
     if (!payingDebt) return;
     const amount = parseAmount(paymentAmount);
-    if (amount <= 0) return;
+    if (amount <= 0 || amount > payingDebt.remainingAmount) return;
     setPaymentError(null);
     try {
       const categoryId = await findDebtCategoryId(payingDebt.title);

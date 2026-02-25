@@ -23,7 +23,14 @@ function advanceDate(date: Date, frequency: Frequency): Date {
   switch (frequency) {
     case 'daily': newDate.setDate(newDate.getDate() + 1); break;
     case 'weekly': newDate.setDate(newDate.getDate() + 7); break;
-    case 'monthly': newDate.setMonth(newDate.getMonth() + 1); break;
+    case 'monthly': {
+      const originalDay = newDate.getDate();
+      newDate.setDate(1);
+      newDate.setMonth(newDate.getMonth() + 1);
+      const lastDay = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate();
+      newDate.setDate(Math.min(originalDay, lastDay));
+      break;
+    }
     case 'yearly': newDate.setFullYear(newDate.getFullYear() + 1); break;
   }
   return newDate;

@@ -33,16 +33,37 @@ export const formatDateLV = (dateStr: string): string => {
 
 export const validateImportData = (data: any): boolean => {
   if (!data || typeof data !== 'object') return false;
+
+  const ensureArray = (value: unknown) => value === undefined || Array.isArray(value);
   if (!Array.isArray(data.expenses) || !Array.isArray(data.categories)) return false;
-  
+  if (!ensureArray(data.incomes) || !ensureArray(data.incomeCategories) || !ensureArray(data.recurringExpenses) || !ensureArray(data.debts)) {
+    return false;
+  }
+
   for (const exp of data.expenses) {
-    if (!exp.id || typeof exp.amount !== 'number' || !exp.date || !exp.categoryId) return false;
+    if (!exp?.id || typeof exp.amount !== 'number' || !exp.date || !exp.categoryId) return false;
   }
-  
+
+  for (const inc of data.incomes || []) {
+    if (!inc?.id || typeof inc.amount !== 'number' || !inc.date || !inc.categoryId) return false;
+  }
+
   for (const cat of data.categories) {
-    if (!cat.id || !cat.name) return false;
+    if (!cat?.id || !cat.name || typeof cat.isArchived !== 'boolean') return false;
   }
-  
+
+  for (const cat of data.incomeCategories || []) {
+    if (!cat?.id || !cat.name || typeof cat.isArchived !== 'boolean') return false;
+  }
+
+  for (const rec of data.recurringExpenses || []) {
+    if (!rec?.id || typeof rec.amount !== 'number' || !rec.categoryId || !rec.startDate || typeof rec.isActive !== 'boolean') return false;
+  }
+
+  for (const debt of data.debts || []) {
+    if (!debt?.id || !debt.title || typeof debt.totalAmount !== 'number' || typeof debt.remainingAmount !== 'number') return false;
+  }
+
   return true;
 };
 
