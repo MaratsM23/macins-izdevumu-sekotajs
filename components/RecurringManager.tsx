@@ -38,6 +38,7 @@ const RecurringManager: React.FC = () => {
   const [startDate, setStartDate] = useState(getTodayStr());
   const [note, setNote] = useState('');
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const allCategories = useLiveQuery(() => db.categories.toArray()) || [];
   const activeCategories = allCategories.filter(c => !c.isArchived);
@@ -68,11 +69,15 @@ const RecurringManager: React.FC = () => {
     setFrequency(item.frequency); setStartDate(item.startDate); setNote(item.note || ''); setIsFormOpen(true);
   };
 
-  const deleteTemplate = async (id: string) => {
-    if (window.confirm('Dzēst šo regulāro maksājumu?')) {
-      await db.recurringExpenses.delete(id);
-      if (editingId === id) resetForm();
-    }
+  const deleteTemplate = (id: string) => {
+    setConfirmDeleteId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteId) return;
+    await db.recurringExpenses.delete(confirmDeleteId);
+    if (editingId === confirmDeleteId) resetForm();
+    setConfirmDeleteId(null);
   };
 
   const handleManualTrigger = async (template: RecurringExpense) => {
@@ -82,7 +87,9 @@ const RecurringManager: React.FC = () => {
       await db.recurringExpenses.update(template.id, { lastGeneratedDate: todayStr });
       setJustAddedId(template.id);
       setTimeout(() => setJustAddedId(null), 2000);
-    } catch (err) { console.error(err); alert("Kļūda pievienojot."); }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const getNextScheduledDate = (item: RecurringExpense) => {
@@ -193,6 +200,32 @@ const RecurringManager: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirm Modal */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
+          <div className="w-full max-w-xs p-6 rounded-2xl space-y-4 text-center" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid rgba(248, 113, 113, 0.3)' }}>
+            <p className="font-bold" style={{ color: 'var(--text-primary)' }}>Dzēst regulāro maksājumu?</p>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Šo darbību nevar atsaukt.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 py-3 font-bold rounded-xl"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+              >
+                Atcelt
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="flex-1 py-3 font-bold rounded-xl"
+                style={{ backgroundColor: 'var(--danger)', color: '#fff' }}
+              >
+                Dzēst
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

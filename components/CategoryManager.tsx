@@ -209,6 +209,8 @@ const CategoryManager: React.FC = () => {
   const [isInvestment, setIsInvestment] = useState(false);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [editingIconId, setEditingIconId] = useState<string | null>(null);
+  const [addCatError, setAddCatError] = useState<string | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<{ id: string; count: number } | null>(null);
   const allCategories = useLiveQuery(() => db.categories.toArray()) || [];
 
   const sorted = [...allCategories].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
@@ -240,26 +242,29 @@ const CategoryManager: React.FC = () => {
       setNewCatIcon('📌');
       setIsInvestment(false);
       setShowIconPicker(false);
-    } catch (err) {
-      alert('Kategorija ar šādu nosaukumu jau eksistē vai radās kļūda.');
+      setAddCatError(null);
+    } catch {
+      setAddCatError('Kategorija ar šādu nosaukumu jau eksistē vai radās kļūda.');
     }
   };
 
   const toggleArchive = async (id: string, currentlyArchived: boolean) => {
-    const count = await db.expenses.where('categoryId').equals(id).count();
     if (currentlyArchived) {
       await db.categories.update(id, { isArchived: false, updatedAt: Date.now() });
     } else {
-      if (count > 0) {
-        if (window.confirm(`Šai kategorijai ir ${count} ieraksti. Tā tiks arhivēta.`)) {
-          await db.categories.update(id, { isArchived: true, updatedAt: Date.now() });
-        }
-      } else {
-        if (window.confirm('Dzēst šo kategoriju?')) {
-          await db.categories.delete(id);
-        }
-      }
+      const count = await db.expenses.where('categoryId').equals(id).count();
+      setPendingToggle({ id, count });
     }
+  };
+
+  const handleConfirmToggle = async () => {
+    if (!pendingToggle) return;
+    if (pendingToggle.count > 0) {
+      await db.categories.update(pendingToggle.id, { isArchived: true, updatedAt: Date.now() });
+    } else {
+      await db.categories.delete(pendingToggle.id);
+    }
+    setPendingToggle(null);
   };
 
   const toggleInvestment = async (id: string, currentVal: boolean | undefined) => {
@@ -310,7 +315,7 @@ const CategoryManager: React.FC = () => {
           <input
             type="text"
             value={newCatName}
-            onChange={(e) => setNewCatName(e.target.value)}
+            onChange={(e) => { setNewCatName(e.target.value); setAddCatError(null); }}
             placeholder="Jauna kategorija"
             className="flex-1 p-3 rounded-xl outline-none"
             style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
@@ -322,6 +327,10 @@ const CategoryManager: React.FC = () => {
           </label>
           <button onClick={addCategory} className="px-4 py-3 font-bold rounded-xl" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)' }}>+</button>
         </div>
+
+        {addCatError && (
+          <p className="text-xs font-bold px-1" style={{ color: 'var(--danger)' }}>{addCatError}</p>
+        )}
 
         {showIconPicker && (
           <div className="grid grid-cols-8 gap-1.5 p-3 rounded-xl max-h-48 overflow-y-auto" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}>
@@ -383,6 +392,35 @@ const CategoryManager: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Archive/Delete Confirm Modal */}
+      {pendingToggle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
+          <div className="w-full max-w-xs p-6 rounded-2xl space-y-4 text-center" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid rgba(248, 113, 113, 0.3)' }}>
+            <p className="font-bold" style={{ color: 'var(--text-primary)' }}>
+              {pendingToggle.count > 0
+                ? `Šai kategorijai ir ${pendingToggle.count} ieraksti. Tā tiks arhivēta.`
+                : 'Dzēst šo kategoriju?'}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPendingToggle(null)}
+                className="flex-1 py-3 font-bold rounded-xl"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+              >
+                Atcelt
+              </button>
+              <button
+                onClick={handleConfirmToggle}
+                className="flex-1 py-3 font-bold rounded-xl"
+                style={{ backgroundColor: 'var(--danger)', color: '#fff' }}
+              >
+                {pendingToggle.count > 0 ? 'Arhivēt' : 'Dzēst'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

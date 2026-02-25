@@ -20,9 +20,11 @@ const SavingsView: React.FC = () => {
   const [formTarget, setFormTarget] = useState('');
   const [formInitial, setFormInitial] = useState('');
   const [formArchived, setFormArchived] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [withdrawForm, setWithdrawForm] = useState<{
     categoryId: string; categoryName: string; amount: string; date: string; maxAmount: number;
   } | null>(null);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
 
   const categories = useLiveQuery(() =>
     db.categories.filter(c => !!c.isInvestment).toArray()
@@ -62,10 +64,20 @@ const SavingsView: React.FC = () => {
       setEditingAccount(null);
       setFormName(''); setFormDesc(''); setFormTarget(''); setFormInitial(''); setFormArchived(false);
     }
+    setAccountError(null);
     setIsFormOpen(true);
   };
 
-  const closeForm = () => { setIsFormOpen(false); setEditingAccount(null); };
+  const closeForm = () => {
+    setIsFormOpen(false);
+    setEditingAccount(null);
+    setAccountError(null);
+  };
+
+  const closeWithdrawForm = () => {
+    setWithdrawForm(null);
+    setWithdrawError(null);
+  };
 
   const saveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,25 +91,32 @@ const SavingsView: React.FC = () => {
       if (editingAccount) { await db.categories.update(editingAccount.id, data); }
       else { await db.categories.add({ id: crypto.randomUUID(), ...data, createdAt: Date.now() }); }
       closeForm();
-    } catch (err) { console.error(err); alert('Kļūda saglabājot kontu.'); }
+    } catch (err) {
+      console.error(err);
+      setAccountError('Kļūda saglabājot kontu.');
+    }
   };
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!withdrawForm) return;
     const amount = parseAmount(withdrawForm.amount);
-    if (amount <= 0) { alert("Summai jābūt lielākai par 0"); return; }
-    if (amount > withdrawForm.maxAmount) { alert("Nepietiek līdzekļu šajā kontā!"); return; }
+    if (amount <= 0) { setWithdrawError('Summai jābūt lielākai par 0.'); return; }
+    if (amount > withdrawForm.maxAmount) { setWithdrawError('Nepietiek līdzekļu šajā kontā!'); return; }
+    setWithdrawError(null);
     try {
       const incomeCats = await db.incomeCategories.toArray();
-      let targetIncomeCat = incomeCats.find(c => c.name === 'Citi') || incomeCats[0];
+      const targetIncomeCat = incomeCats.find(c => c.name === 'Citi') || incomeCats[0];
       await db.incomes.add({
         id: crypto.randomUUID(), amount, currency: 'EUR', date: withdrawForm.date,
         categoryId: targetIncomeCat.id, sourceCategoryId: withdrawForm.categoryId,
         note: `Izņemts no: ${withdrawForm.categoryName}`, createdAt: Date.now(), updatedAt: Date.now()
       });
-      setWithdrawForm(null);
-    } catch (err) { console.error(err); alert("Kļūda saglabājot izmaksu"); }
+      closeWithdrawForm();
+    } catch (err) {
+      console.error(err);
+      setWithdrawError('Kļūda saglabājot izmaksu.');
+    }
   };
 
   const totalSaved = balances ? Object.values(balances).reduce((sum, b) => sum + b.current, 0) : 0;
@@ -153,6 +172,7 @@ const SavingsView: React.FC = () => {
                     <div className="flex gap-2 relative z-10">
                         <button
                             onClick={() => {
+                                setWithdrawError(null);
                                 setWithdrawForm({ categoryId: cat.id, categoryName: cat.name, amount: '', date: getTodayStr(), maxAmount: stats.current });
                             }}
                             disabled={stats.current <= 0}
@@ -229,6 +249,11 @@ const SavingsView: React.FC = () => {
                        </label>
                     </div>
                  )}
+
+                 {accountError && (
+                   <p className="text-sm font-bold" style={{ color: 'var(--danger)' }}>{accountError}</p>
+                 )}
+
                  <div className="flex gap-3 pt-3">
                     <button type="button" onClick={closeForm} className="flex-1 py-3 font-bold rounded-xl transition-colors" style={{ color: 'var(--text-tertiary)' }}>Atcelt</button>
                     <button type="submit" className="flex-[2] font-bold py-3 rounded-xl active:scale-95 transition-all" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)', boxShadow: '0 4px 20px rgba(212, 168, 83, 0.3)' }}>Saglabāt</button>
@@ -240,7 +265,7 @@ const SavingsView: React.FC = () => {
 
       {/* Withdrawal Modal */}
       {withdrawForm && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={() => setWithdrawForm(null)}>
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={closeWithdrawForm}>
             <div className="w-full max-w-sm rounded-2xl p-6" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
                <h3 className="text-xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Izņemt naudu</h3>
                <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>No konta: <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{withdrawForm.categoryName}</span></p>
@@ -257,8 +282,13 @@ const SavingsView: React.FC = () => {
                   <div className="p-3 rounded-xl text-xs font-medium" style={{ backgroundColor: 'rgba(96, 165, 250, 0.1)', color: 'var(--info)', border: '1px solid rgba(96, 165, 250, 0.2)' }}>
                      Šī summa parādīsies Tavā bilancē kā pieejamie līdzekļi (ienākums).
                   </div>
+
+                  {withdrawError && (
+                    <p className="text-sm font-bold" style={{ color: 'var(--danger)' }}>{withdrawError}</p>
+                  )}
+
                   <div className="flex gap-3 pt-2">
-                     <button type="button" onClick={() => setWithdrawForm(null)} className="flex-1 py-4 font-bold rounded-2xl transition-colors" style={{ color: 'var(--text-tertiary)' }}>Atcelt</button>
+                     <button type="button" onClick={closeWithdrawForm} className="flex-1 py-4 font-bold rounded-2xl transition-colors" style={{ color: 'var(--text-tertiary)' }}>Atcelt</button>
                      <button type="submit" className="flex-[2] font-bold py-4 rounded-2xl active:scale-95 transition-all" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)', boxShadow: '0 4px 20px rgba(212, 168, 83, 0.3)' }}>Apstiprināt</button>
                   </div>
                </form>

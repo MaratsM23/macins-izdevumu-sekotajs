@@ -24,6 +24,9 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false);
+  const [showFullResetConfirm, setShowFullResetConfirm] = useState(false);
 
   const handleExportJSON = async () => {
     const expenses = await db.expenses.toArray();
@@ -181,27 +184,33 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
     }
   };
 
-  const handleClearHistoryOnly = async () => {
-    if (window.confirm('Vai dzēst VISU darījumu vēsturi? Kategorijas un regulārie maksājumi saglabāsies.')) {
-      await clearSupabaseTables(['expenses', 'incomes', 'debts']);
-      await Promise.all([db.expenses.clear(), db.incomes.clear(), db.debts.clear()]);
-      await db.recurringExpenses.toCollection().modify({ lastGeneratedDate: undefined });
-      alert('Vēsture notīrīta!');
-      window.location.reload();
-    }
+  const handleClearHistoryOnly = () => {
+    setShowClearHistoryConfirm(true);
   };
 
-  const handleFullReset = async () => {
-    if (window.confirm('DANGER: Vai tiešām dzēst PILNĪGI VISUS datus?')) {
-      await clearSupabaseTables(['expenses', 'incomes', 'categories', 'income_categories', 'recurring_expenses', 'debts']);
-      await Promise.all([db.expenses.clear(), db.incomes.clear(), db.categories.clear(), db.incomeCategories.clear(), db.recurringExpenses.clear(), db.debts.clear()]);
-      window.location.reload();
-    }
+  const confirmClearHistory = async () => {
+    setShowClearHistoryConfirm(false);
+    await clearSupabaseTables(['expenses', 'incomes', 'debts']);
+    await Promise.all([db.expenses.clear(), db.incomes.clear(), db.debts.clear()]);
+    await db.recurringExpenses.toCollection().modify({ lastGeneratedDate: undefined });
+    window.location.reload();
+  };
+
+  const handleFullReset = () => {
+    setShowFullResetConfirm(true);
+  };
+
+  const confirmFullReset = async () => {
+    setShowFullResetConfirm(false);
+    await clearSupabaseTables(['expenses', 'incomes', 'categories', 'income_categories', 'recurring_expenses', 'debts']);
+    await Promise.all([db.expenses.clear(), db.incomes.clear(), db.categories.clear(), db.incomeCategories.clear(), db.recurringExpenses.clear(), db.debts.clear()]);
+    window.location.reload();
   };
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== 'DZĒST') return;
     setIsDeleting(true);
+    setDeleteAccountError(null);
     try {
       const { error } = await supabase.rpc('delete_user');
       if (error) throw error;
@@ -209,7 +218,7 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
       await supabase.auth.signOut();
       window.location.reload();
     } catch (err) {
-      alert('Kļūda dzēšot kontu. Lūdzu mēģiniet vēlreiz.');
+      setDeleteAccountError('Kļūda dzēšot kontu. Lūdzu mēģiniet vēlreiz.');
       setIsDeleting(false);
     }
   };
@@ -320,6 +329,94 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
       </motion.div>
 
       <AnimatePresence>
+        {showClearHistoryConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+              style={{ backgroundColor: 'var(--bg-secondary)', border: '2px solid rgba(251, 191, 36, 0.3)' }}
+            >
+              <div className="text-center space-y-2">
+                <div className="text-4xl">&#9888;</div>
+                <h3 className="text-lg font-bold" style={{ color: 'var(--warning)' }}>Dzēst vēsturi?</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  Visi izdevumi, ienākumi un parādi tiks dzēsti. Kategorijas un regulārie maksājumi saglabāsies.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowClearHistoryConfirm(false)}
+                  className="flex-1 p-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                >
+                  Atcelt
+                </button>
+                <button
+                  onClick={confirmClearHistory}
+                  className="flex-1 p-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all"
+                  style={{ backgroundColor: 'rgba(251, 191, 36, 0.2)', border: '1px solid rgba(251, 191, 36, 0.4)', color: 'var(--warning)' }}
+                >
+                  Dzēst vēsturi
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showFullResetConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-sm rounded-2xl p-6 space-y-4"
+              style={{ backgroundColor: 'var(--bg-secondary)', border: '2px solid rgba(248, 113, 113, 0.3)' }}
+            >
+              <div className="text-center space-y-2">
+                <div className="text-4xl">&#9888;</div>
+                <h3 className="text-lg font-bold" style={{ color: 'var(--danger)' }}>Dzēst pilnīgi visu?</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  Visi dati tiks neatgriezeniski dzēsti — izdevumi, ienākumi, kategorijas, parādi un regulārie maksājumi.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowFullResetConfirm(false)}
+                  className="flex-1 p-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all"
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                >
+                  Atcelt
+                </button>
+                <button
+                  onClick={confirmFullReset}
+                  className="flex-1 p-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all"
+                  style={{ backgroundColor: 'rgba(248, 113, 113, 0.2)', border: '1px solid rgba(248, 113, 113, 0.4)', color: 'var(--danger)' }}
+                >
+                  Dzēst visu
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {showImportConfirm && pendingImportData && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -417,9 +514,13 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
                 />
               </div>
 
+              {deleteAccountError && (
+                <p className="text-sm font-bold text-center" style={{ color: 'var(--danger)' }}>{deleteAccountError}</p>
+              )}
+
               <div className="flex gap-3">
                 <button
-                  onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); }}
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmText(''); setDeleteAccountError(null); }}
                   disabled={isDeleting}
                   className="flex-1 p-3 rounded-xl font-bold text-sm active:scale-[0.98] transition-all"
                   style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}

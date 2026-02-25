@@ -7,6 +7,7 @@ import { db } from '../db';
 import { formatCurrency, formatDateLV, getTodayStr, parseAmount } from '../utils';
 import { Transaction } from '../types';
 import EditExpenseModal from './EditExpenseModal';
+import { findDebtCategoryId } from '../lib/debtUtils';
 
 const COLORS = ['#d4a853', '#4ade80', '#60a5fa', '#c47d2e', '#d946ef', '#fbbf24', '#84cc16', '#6366f1'];
 
@@ -32,6 +33,8 @@ const ReportsView: React.FC = () => {
   const [editingBudgetCatId, setEditingBudgetCatId] = useState<string | null>(null);
   const [selectedDebt, setSelectedDebt] = useState<any | null>(null);
   const [debtPaymentForm, setDebtPaymentForm] = useState<{ amount: string; date: string } | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [debtPaymentError, setDebtPaymentError] = useState<string | null>(null);
 
   const expenses = useLiveQuery(() => db.expenses.toArray()) || [];
   const incomes = useLiveQuery(() => db.incomes.toArray()) || [];
@@ -233,13 +236,15 @@ const ReportsView: React.FC = () => {
   const openPaymentModal = (bill: any) => {
     setSelectedBill(bill);
     setPaymentForm({ amount: bill.amount.toString(), date: getTodayStr(), note: bill.note || '' });
+    setPaymentError(null);
   };
 
   const confirmPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBill || !paymentForm) return;
     const parsedAmount = parseAmount(paymentForm.amount);
-    if (parsedAmount <= 0) { alert("Lūdzu ievadiet summu."); return; }
+    if (parsedAmount <= 0) { setPaymentError('Lūdzu ievadiet summu.'); return; }
+    setPaymentError(null);
     try {
       await db.expenses.add({
         id: crypto.randomUUID(), amount: parsedAmount, currency: 'EUR', date: paymentForm.date,
@@ -249,7 +254,8 @@ const ReportsView: React.FC = () => {
       await db.recurringExpenses.update(selectedBill.id, { lastGeneratedDate: paymentForm.date });
       setSelectedBill(null);
       setPaymentForm(null);
-    } catch (err) { alert('Kļūda reģistrējot maksājumu'); }
+      setPaymentError(null);
+    } catch (err) { setPaymentError('Kļūda reģistrējot maksājumu.'); }
   };
 
   const linkExistingTransaction = async (billId: string, transactionDate: string) => {
@@ -258,35 +264,27 @@ const ReportsView: React.FC = () => {
   };
 
   const markBillAsUnpaid = async (billId: string) => {
-    if (window.confirm('Vai tiešām atzīmēt kā nesamaksātu?')) {
-      await db.recurringExpenses.update(billId, { lastGeneratedDate: '1970-01-01' });
-      setSelectedBill(null);
-    }
+    await db.recurringExpenses.update(billId, { lastGeneratedDate: '1970-01-01' });
+    setSelectedBill(null);
   };
 
   const openDebtPaymentModal = (debt: any) => {
     setSelectedDebt(debt);
     setDebtPaymentForm({ amount: debt.monthlyPayment.toString(), date: getTodayStr() });
+    setDebtPaymentError(null);
   };
 
   const confirmDebtPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDebt || !debtPaymentForm) return;
     const parsedAmount = parseAmount(debtPaymentForm.amount);
-    if (parsedAmount <= 0) { alert('Lūdzu ievadiet summu.'); return; }
+    if (parsedAmount <= 0) { setDebtPaymentError('Lūdzu ievadiet summu.'); return; }
+    setDebtPaymentError(null);
     try {
-      const cats = await db.categories.toArray();
-      const debtTitle = selectedDebt.title.toLowerCase();
-      const expCat =
-        cats.find(c => c.name.toLowerCase() === debtTitle) ||
-        cats.find(c => !c.isInvestment && (c.name.toLowerCase().includes(debtTitle) || debtTitle.includes(c.name.toLowerCase()))) ||
-        cats.find(c => !c.isInvestment && (c.name.toLowerCase().includes('kred') || c.name.toLowerCase().includes('līz'))) ||
-        cats.find(c => c.name === 'Citi') ||
-        cats.find(c => !c.isInvestment && !c.isArchived) ||
-        cats[0];
+      const categoryId = await findDebtCategoryId(selectedDebt.title);
       await db.expenses.add({
         id: crypto.randomUUID(), amount: parsedAmount, currency: 'EUR', date: debtPaymentForm.date,
-        categoryId: expCat?.id || selectedDebt.categoryId, debtId: selectedDebt.id,
+        categoryId: categoryId || selectedDebt.categoryId, debtId: selectedDebt.id,
         note: `Maksājums: ${selectedDebt.title}`, createdAt: Date.now(), updatedAt: Date.now()
       });
       const newRemaining = selectedDebt.remainingAmount - parsedAmount;
@@ -297,7 +295,8 @@ const ReportsView: React.FC = () => {
       });
       setSelectedDebt(null);
       setDebtPaymentForm(null);
-    } catch (err) { alert('Kļūda reģistrējot maksājumu'); }
+      setDebtPaymentError(null);
+    } catch (err) { setDebtPaymentError('Kļūda reģistrējot maksājumu.'); }
   };
 
   const saveInlineBudget = async (catId: string, value: string) => {
@@ -773,6 +772,11 @@ const ReportsView: React.FC = () => {
 
             {!selectedBill.isPaid && paymentForm ? (
               <div>
+                {paymentError && (
+                  <div className="mb-3 p-3 rounded-xl text-sm font-bold" style={{ backgroundColor: 'rgba(248, 113, 113, 0.1)', color: 'var(--danger)', border: '1px solid rgba(248, 113, 113, 0.2)' }}>
+                    {paymentError}
+                  </div>
+                )}
                 {selectedBill.matchedTransaction && (
                   <div className="mb-4 p-4 rounded-2xl" style={{ backgroundColor: 'rgba(74, 222, 128, 0.1)', border: '1px solid rgba(74, 222, 128, 0.2)' }}>
                     <p className="text-xs font-bold mb-2 uppercase tracking-wide" style={{ color: 'var(--success)' }}>Atrasts līdzīgs maksājums</p>
@@ -847,14 +851,14 @@ const ReportsView: React.FC = () => {
 
       {/* Debt Payment Modal */}
       {selectedDebt && debtPaymentForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={() => setSelectedDebt(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={() => { setSelectedDebt(null); setDebtPaymentError(null); }}>
           <div className="w-full max-w-sm rounded-2xl overflow-hidden p-6 space-y-4" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{selectedDebt.title}</h3>
                 <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Atlikums: <span className="font-bold" style={{ color: 'var(--danger)' }}>{formatCurrency(selectedDebt.remainingAmount)}</span></p>
               </div>
-              <button onClick={() => setSelectedDebt(null)} className="text-2xl leading-none" style={{ color: 'var(--text-tertiary)' }}>&times;</button>
+              <button onClick={() => { setSelectedDebt(null); setDebtPaymentError(null); }} className="text-2xl leading-none" style={{ color: 'var(--text-tertiary)' }}>&times;</button>
             </div>
             <form onSubmit={confirmDebtPayment} className="space-y-4">
               <div className="p-5 rounded-2xl" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)' }}>
@@ -874,6 +878,11 @@ const ReportsView: React.FC = () => {
                   <input type="date" value={debtPaymentForm.date} onChange={e => setDebtPaymentForm({ ...debtPaymentForm, date: e.target.value })} className="w-full p-2 rounded-lg outline-none font-medium" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
                 </div>
               </div>
+              {debtPaymentError && (
+                <div className="p-3 rounded-xl text-sm font-bold" style={{ backgroundColor: 'rgba(248, 113, 113, 0.1)', color: 'var(--danger)', border: '1px solid rgba(248, 113, 113, 0.2)' }}>
+                  {debtPaymentError}
+                </div>
+              )}
               <button type="submit" className="w-full font-bold py-4 rounded-2xl active:scale-95 transition-all" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)', boxShadow: '0 4px 20px rgba(212, 168, 83, 0.3)' }}>
                 Apstiprināt Maksājumu
               </button>

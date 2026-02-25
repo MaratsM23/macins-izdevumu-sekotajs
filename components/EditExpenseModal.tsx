@@ -17,6 +17,7 @@ const EditExpenseModal: React.FC<Props> = ({ transaction, type, onClose }) => {
   const [date, setDate] = useState(transaction.date);
   const [note, setNote] = useState(transaction.note || '');
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const categories = useLiveQuery(async () => {
     const table = type === 'expense' ? db.categories : db.incomeCategories;
@@ -28,10 +29,10 @@ const EditExpenseModal: React.FC<Props> = ({ transaction, type, onClose }) => {
     e.preventDefault();
     const parsedAmount = parseAmount(amount);
     if (parsedAmount <= 0) {
-      alert("Summai jābūt lielākai par 0");
+      setError('Summai jābūt lielākai par 0.');
       return;
     }
-
+    setError(null);
     const table = type === 'expense' ? db.expenses : db.incomes;
     await table.update(transaction.id, {
       amount: parsedAmount,
@@ -48,9 +49,9 @@ const EditExpenseModal: React.FC<Props> = ({ transaction, type, onClose }) => {
       const table = type === 'expense' ? db.expenses : db.incomes;
       await table.delete(transaction.id);
       onClose();
-    } catch (error) {
-      console.error("Kļūda dzēšot:", error);
-      alert("Neizdevās izdzēst ierakstu.");
+    } catch (err) {
+      console.error('Kļūda dzēšot:', err);
+      setError('Neizdevās izdzēst ierakstu.');
     }
   };
 
@@ -119,7 +120,11 @@ const EditExpenseModal: React.FC<Props> = ({ transaction, type, onClose }) => {
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          {error && (
+            <p className="text-sm font-bold px-1" style={{ color: 'var(--danger)' }}>{error}</p>
+          )}
+
+          <div className="flex gap-3 pt-2">
             {!isConfirmingDelete ? (
               <>
                 <button
@@ -145,7 +150,7 @@ const EditExpenseModal: React.FC<Props> = ({ transaction, type, onClose }) => {
               <>
                 <button
                   type="button"
-                  onClick={() => setIsConfirmingDelete(false)}
+                  onClick={() => { setIsConfirmingDelete(false); setError(null); }}
                   className="flex-1 font-bold py-3 rounded-xl transition-colors"
                   style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
                 >

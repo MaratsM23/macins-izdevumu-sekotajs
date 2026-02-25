@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db';
 import { parseAmount, formatCurrency, getTodayStr, formatDateLV } from '../utils';
 import { Debt } from '../types';
+import { findDebtCategoryId } from '../lib/debtUtils';
 
 const DebtManager: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -14,9 +15,12 @@ const DebtManager: React.FC = () => {
   const [monthlyPayment, setMonthlyPayment] = useState('');
   const [hasInstallments, setHasInstallments] = useState(true);
   const [createIncomeRecord, setCreateIncomeRecord] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [payingDebt, setPayingDebt] = useState<Debt | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(getTodayStr());
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const debts = useLiveQuery(() => db.debts.toArray()) || [];
   const activeDebts = debts.filter(d => !d.isPaidOff);
@@ -26,14 +30,17 @@ const DebtManager: React.FC = () => {
 
   const resetForm = () => {
     setTitle(''); setTotalAmount(''); setRemainingAmount(''); setMonthlyPayment('');
-    setHasInstallments(true); setCreateIncomeRecord(false); setEditingId(null); setIsFormOpen(false);
+    setHasInstallments(true); setCreateIncomeRecord(false);
+    setEditingId(null); setIsFormOpen(false);
+    setIsConfirmingDelete(false); setFormError(null);
   };
 
   const startEditing = (debt: Debt) => {
     setEditingId(debt.id); setTitle(debt.title); setTotalAmount(debt.totalAmount.toString());
     setRemainingAmount(debt.remainingAmount.toString());
     setMonthlyPayment(debt.monthlyPayment > 0 ? debt.monthlyPayment.toString() : '');
-    setHasInstallments(debt.monthlyPayment > 0); setCreateIncomeRecord(false); setIsFormOpen(true);
+    setHasInstallments(debt.monthlyPayment > 0); setCreateIncomeRecord(false);
+    setIsConfirmingDelete(false); setFormError(null); setIsFormOpen(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -42,6 +49,7 @@ const DebtManager: React.FC = () => {
     const parsedMonthly = hasInstallments ? parseAmount(monthlyPayment) : 0;
     const parsedRemaining = remainingAmount ? parseAmount(remainingAmount) : parsedTotal;
     if (!title || parsedTotal <= 0) return;
+    setFormError(null);
     try {
       const debtData = {
         title, totalAmount: parsedTotal, remainingAmount: parsedRemaining, monthlyPayment: parsedMonthly,
@@ -62,12 +70,21 @@ const DebtManager: React.FC = () => {
         }
       }
       resetForm();
-    } catch (err) { console.error(err); alert('Kļūda saglabājot'); }
+    } catch (err) {
+      console.error(err);
+      setFormError('Kļūda saglabājot.');
+    }
   };
 
   const handleDelete = async () => {
-    if (editingId && window.confirm('Vai tiešām dzēst šo parādu?')) {
-      await db.debts.delete(editingId); resetForm();
+    if (!editingId) return;
+    try {
+      await db.debts.delete(editingId);
+      resetForm();
+    } catch (err) {
+      console.error(err);
+      setFormError('Kļūda dzēšot parādu.');
+      setIsConfirmingDelete(false);
     }
   };
 
@@ -76,27 +93,23 @@ const DebtManager: React.FC = () => {
     if (!payingDebt) return;
     const amount = parseAmount(paymentAmount);
     if (amount <= 0) return;
+    setPaymentError(null);
     try {
-      const cats = await db.categories.toArray();
-      const debtTitle = payingDebt.title.toLowerCase();
-      const expCat =
-        cats.find(c => c.name.toLowerCase() === debtTitle) ||
-        cats.find(c => !c.isInvestment && (c.name.toLowerCase().includes(debtTitle) || debtTitle.includes(c.name.toLowerCase()))) ||
-        cats.find(c => !c.isInvestment && (c.name.toLowerCase().includes('kred') || c.name.toLowerCase().includes('līz'))) ||
-        cats.find(c => c.name === 'Citi') ||
-        cats.find(c => !c.isInvestment && !c.isArchived) ||
-        cats[0];
+      const categoryId = await findDebtCategoryId(payingDebt.title);
       await db.expenses.add({
         id: crypto.randomUUID(), amount, currency: 'EUR', date: paymentDate,
-        categoryId: expCat?.id || null, debtId: payingDebt.id, note: `Maksājums: ${payingDebt.title}`,
+        categoryId: categoryId || null, debtId: payingDebt.id, note: `Maksājums: ${payingDebt.title}`,
         createdAt: Date.now(), updatedAt: Date.now()
       });
       const newRemaining = payingDebt.remainingAmount - amount;
       await db.debts.update(payingDebt.id, {
         remainingAmount: newRemaining < 0 ? 0 : newRemaining, isPaidOff: newRemaining <= 0.01, updatedAt: Date.now()
       });
-      setPayingDebt(null); setPaymentAmount('');
-    } catch (err) { console.error(err); alert('Kļūda reģistrējot maksājumu'); }
+      setPayingDebt(null); setPaymentAmount(''); setPaymentError(null);
+    } catch (err) {
+      console.error(err);
+      setPaymentError('Kļūda reģistrējot maksājumu.');
+    }
   };
 
   const openPaymentModal = (debt: Debt) => {
@@ -104,6 +117,7 @@ const DebtManager: React.FC = () => {
     const suggest = debt.monthlyPayment > 0 ? Math.min(debt.monthlyPayment, debt.remainingAmount) : '';
     setPaymentAmount(suggest.toString());
     setPaymentDate(getTodayStr());
+    setPaymentError(null);
   };
 
   const onTotalChange = (val: string) => {
@@ -178,12 +192,23 @@ const DebtManager: React.FC = () => {
             </div>
           )}
 
-          <div className="flex gap-3 pt-2">
-            {editingId && (
-              <button type="button" onClick={handleDelete} className="flex-1 py-4 font-bold rounded-2xl transition-colors" style={{ backgroundColor: 'rgba(248, 113, 113, 0.1)', color: 'var(--danger)', border: '1px solid rgba(248, 113, 113, 0.2)' }}>Dzēst</button>
-            )}
-            <button type="submit" className="flex-[2] font-bold py-4 rounded-2xl active:scale-95 transition-all" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)', boxShadow: '0 4px 20px rgba(212, 168, 83, 0.3)' }}>Saglabāt</button>
-          </div>
+          {formError && (
+            <p className="text-sm font-bold" style={{ color: 'var(--danger)' }}>{formError}</p>
+          )}
+
+          {isConfirmingDelete ? (
+            <div className="flex gap-3">
+              <button type="button" onClick={() => { setIsConfirmingDelete(false); setFormError(null); }} className="flex-1 py-4 font-bold rounded-2xl transition-colors" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>Atcelt</button>
+              <button type="button" onClick={handleDelete} className="flex-[2] py-4 font-bold rounded-2xl active:scale-95 transition-all" style={{ backgroundColor: 'var(--danger)', color: 'var(--bg-primary)' }}>Jā, dzēst</button>
+            </div>
+          ) : (
+            <div className="flex gap-3 pt-2">
+              {editingId && (
+                <button type="button" onClick={() => setIsConfirmingDelete(true)} className="flex-1 py-4 font-bold rounded-2xl transition-colors" style={{ backgroundColor: 'rgba(248, 113, 113, 0.1)', color: 'var(--danger)', border: '1px solid rgba(248, 113, 113, 0.2)' }}>Dzēst</button>
+              )}
+              <button type="submit" className="flex-[2] font-bold py-4 rounded-2xl active:scale-95 transition-all" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)', boxShadow: '0 4px 20px rgba(212, 168, 83, 0.3)' }}>Saglabāt</button>
+            </div>
+          )}
         </form>
       )}
 
@@ -269,7 +294,7 @@ const DebtManager: React.FC = () => {
 
       {/* Payment Modal */}
       {payingDebt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={() => setPayingDebt(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={() => { setPayingDebt(null); setPaymentError(null); }}>
            <div className="w-full max-w-sm rounded-2xl p-6" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
               <h3 className="text-xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>Maksājums</h3>
               <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>Parāds: <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{payingDebt.title}</span></p>
@@ -283,8 +308,13 @@ const DebtManager: React.FC = () => {
                     <label className="block text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--text-tertiary)' }}>Datums</label>
                     <input type="date" value={paymentDate} onChange={e => setPaymentDate(e.target.value)} className="w-full p-3 rounded-xl outline-none font-medium" style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }} />
                  </div>
+
+                 {paymentError && (
+                   <p className="text-sm font-bold" style={{ color: 'var(--danger)' }}>{paymentError}</p>
+                 )}
+
                  <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={() => setPayingDebt(null)} className="flex-1 py-4 font-bold rounded-2xl transition-colors" style={{ color: 'var(--text-tertiary)' }}>Atcelt</button>
+                    <button type="button" onClick={() => { setPayingDebt(null); setPaymentError(null); }} className="flex-1 py-4 font-bold rounded-2xl transition-colors" style={{ color: 'var(--text-tertiary)' }}>Atcelt</button>
                     <button type="submit" className="flex-[2] font-bold py-4 rounded-2xl active:scale-95 transition-all" style={{ backgroundColor: 'var(--accent-primary)', color: 'var(--bg-primary)', boxShadow: '0 4px 20px rgba(212, 168, 83, 0.3)' }}>Apstiprināt</button>
                  </div>
               </form>
