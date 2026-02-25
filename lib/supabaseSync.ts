@@ -121,6 +121,11 @@ export async function syncFromSupabase(): Promise<boolean> {
   isSyncing = true;
   try {
     // 1. Fetch ALL data from Supabase FIRST — do NOT touch local DB yet
+    // Timeout after 10s to prevent infinite loading screen if Supabase hangs
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Sync timeout — using cached local data')), 10_000)
+    );
+
     const [
       categoriesRes,
       incomeCategoriesRes,
@@ -128,13 +133,16 @@ export async function syncFromSupabase(): Promise<boolean> {
       incomesRes,
       recurringRes,
       debtsRes,
-    ] = await Promise.all([
-      supabase.from('categories').select('*'),
-      supabase.from('income_categories').select('*'),
-      supabase.from('expenses').select('*'),
-      supabase.from('incomes').select('*'),
-      supabase.from('recurring_expenses').select('*'),
-      supabase.from('debts').select('*'),
+    ] = await Promise.race([
+      Promise.all([
+        supabase.from('categories').select('*'),
+        supabase.from('income_categories').select('*'),
+        supabase.from('expenses').select('*'),
+        supabase.from('incomes').select('*'),
+        supabase.from('recurring_expenses').select('*'),
+        supabase.from('debts').select('*'),
+      ]),
+      timeoutPromise,
     ]);
 
     // 2. Check for errors — if ANY fetch failed, abort and keep local data

@@ -57,6 +57,9 @@ export async function processRecurringExpenses(): Promise<void> {
   const templates = allTemplates.filter(t => t.isActive);
 
   for (const template of templates) {
+    // Skip malformed templates
+    if (!template.startDate) continue;
+
     // Don't generate if the start date hasn't arrived yet
     if (parseLocalDate(template.startDate) > todayDate) continue;
 

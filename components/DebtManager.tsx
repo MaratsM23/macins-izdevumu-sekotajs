@@ -78,8 +78,14 @@ const DebtManager: React.FC = () => {
     if (amount <= 0) return;
     try {
       const cats = await db.categories.toArray();
-      let expCat = cats.find(c => c.name.toLowerCase().includes('kred') || c.name.toLowerCase().includes('līz'));
-      if (!expCat && cats.length > 0) expCat = cats.find(c => c.name === 'Citi') || cats[0];
+      const debtTitle = payingDebt.title.toLowerCase();
+      const expCat =
+        cats.find(c => c.name.toLowerCase() === debtTitle) ||
+        cats.find(c => !c.isInvestment && (c.name.toLowerCase().includes(debtTitle) || debtTitle.includes(c.name.toLowerCase()))) ||
+        cats.find(c => !c.isInvestment && (c.name.toLowerCase().includes('kred') || c.name.toLowerCase().includes('līz'))) ||
+        cats.find(c => c.name === 'Citi') ||
+        cats.find(c => !c.isInvestment && !c.isArchived) ||
+        cats[0];
       await db.expenses.add({
         id: crypto.randomUUID(), amount, currency: 'EUR', date: paymentDate,
         categoryId: expCat?.id || null, debtId: payingDebt.id, note: `Maksājums: ${payingDebt.title}`,

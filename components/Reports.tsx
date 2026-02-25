@@ -276,10 +276,14 @@ const ReportsView: React.FC = () => {
     if (parsedAmount <= 0) { alert('Lūdzu ievadiet summu.'); return; }
     try {
       const cats = await db.categories.toArray();
-      const expCat = cats.find(c => c.id === selectedDebt.categoryId)
-        || cats.find(c => c.name.toLowerCase().includes('kred') || c.name.toLowerCase().includes('līz'))
-        || cats.find(c => c.name === 'Citi')
-        || cats[0];
+      const debtTitle = selectedDebt.title.toLowerCase();
+      const expCat =
+        cats.find(c => c.name.toLowerCase() === debtTitle) ||
+        cats.find(c => !c.isInvestment && (c.name.toLowerCase().includes(debtTitle) || debtTitle.includes(c.name.toLowerCase()))) ||
+        cats.find(c => !c.isInvestment && (c.name.toLowerCase().includes('kred') || c.name.toLowerCase().includes('līz'))) ||
+        cats.find(c => c.name === 'Citi') ||
+        cats.find(c => !c.isInvestment && !c.isArchived) ||
+        cats[0];
       await db.expenses.add({
         id: crypto.randomUUID(), amount: parsedAmount, currency: 'EUR', date: debtPaymentForm.date,
         categoryId: expCat?.id || selectedDebt.categoryId, debtId: selectedDebt.id,
