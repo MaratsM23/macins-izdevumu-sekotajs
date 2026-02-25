@@ -33,6 +33,7 @@ const SettingsView: React.FC = () => {
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setImportError('');
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -63,6 +64,8 @@ const SettingsView: React.FC = () => {
         }
       } catch (err) {
         setImportError('Kļūda lasot failu.');
+      } finally {
+        event.target.value = '';
       }
     };
     reader.readAsText(file);

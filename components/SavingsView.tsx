@@ -150,8 +150,12 @@ const SavingsView: React.FC = () => {
 
     try {
         const incomeCats = await db.incomeCategories.toArray();
-        let targetIncomeCat = incomeCats.find(c => c.name === 'Citi') || incomeCats[0];
-        
+        const targetIncomeCat = incomeCats.find(c => c.name === 'Citi') || incomeCats[0];
+        if (!targetIncomeCat) {
+            alert('Nav pieejamu ienākumu kategoriju. Izveidojiet vismaz vienu kategoriju iestatījumos.');
+            return;
+        }
+
         await db.incomes.add({
             id: crypto.randomUUID(),
             amount,

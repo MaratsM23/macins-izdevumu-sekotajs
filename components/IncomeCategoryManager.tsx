@@ -9,14 +9,18 @@ const IncomeCategoryManager: React.FC = () => {
 
   const addCategory = async () => {
     if (!newCatName.trim()) return;
-    await db.incomeCategories.add({
-      id: crypto.randomUUID(),
-      name: newCatName.trim(),
-      isArchived: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    });
-    setNewCatName('');
+    try {
+      await db.incomeCategories.add({
+        id: crypto.randomUUID(),
+        name: newCatName.trim(),
+        isArchived: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      });
+      setNewCatName('');
+    } catch (_err) {
+      alert('Kategoriju neizdevās pievienot. Pārbaudiet, vai nosaukums nav dublēts.');
+    }
   };
 
   const toggleArchive = async (id: string, currentlyArchived: boolean) => {
