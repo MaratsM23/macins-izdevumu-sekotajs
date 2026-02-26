@@ -184,6 +184,11 @@ export async function syncFromSupabase(): Promise<boolean> {
     if (recurringRes.data?.length) await db.recurringExpenses.bulkPut(mapRowsToLocal(recurringRes.data) as any);
     if (debtsRes.data?.length) await db.debts.bulkPut(mapRowsToLocal(debtsRes.data) as any);
 
+    // Full sync succeeded — local DB now mirrors Supabase exactly.
+    // Any stale _syncQueue entries are now redundant and can cause
+    // cascade failures on next load, so clear them here.
+    await db.table('_syncQueue').clear();
+
     console.log('Sync from Supabase complete');
     return true;
   } catch (error) {

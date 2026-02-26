@@ -141,7 +141,7 @@ const ReportsView: React.FC = () => {
   const billStatus = useMemo(() => {
     if (!recurring.length) return [];
     return recurring
-      .filter(r => r.isActive && r.frequency === 'monthly')
+      .filter(r => r.isActive && r.frequency === 'monthly' && r.startDate)
       .map(item => {
         const startDateObj = parseLocalDate(item.startDate);
         const expectedDay = startDateObj.getDate();
