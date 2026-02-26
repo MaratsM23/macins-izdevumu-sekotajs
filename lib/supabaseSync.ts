@@ -8,6 +8,11 @@ let isSyncing = false;      // suppresses Dexie hook pushes during sync
 let isSyncRunning = false;  // prevents concurrent syncFromSupabase() calls
 const hookUnsubscribers: (() => void)[] = [];
 
+/** Suppress/restore hook pushes during bulk import operations */
+export function setImportMode(active: boolean): void {
+  isSyncing = active;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────
 export interface SyncQueueItem {
   id: string;

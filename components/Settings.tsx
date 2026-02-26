@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { db } from '../db';
 import { supabase } from '../supabase';
 import { downloadFile } from '../utils';
-import { pushAllToSupabase, clearSupabaseTables } from '../lib/supabaseSync';
+import { pushAllToSupabase, clearSupabaseTables, setImportMode } from '../lib/supabaseSync';
 import { motion, AnimatePresence } from 'framer-motion';
 import CategoryManager from './CategoryManager';
 import IncomeCategoryManager from './IncomeCategoryManager';
@@ -149,7 +149,13 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
       await db.incomeCategories.clear();
       await db.recurringExpenses.clear();
       await db.debts.clear();
+      // Clear any stale sync queue entries — they reference deleted records
+      await db.table('_syncQueue').clear();
 
+      // Suppress Dexie hooks during bulk insert — hooks would fire hundreds
+      // of individual Supabase requests causing 403/400 cascade failures.
+      // pushAllToSupabase below handles the single controlled push instead.
+      setImportMode(true);
       let imported = 0;
       const batchInsert = async (table: any, records: any[], label: string) => {
         for (let i = 0; i < records.length; i += BATCH_SIZE) {
@@ -166,6 +172,7 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
       await batchInsert(db.incomes, validIncomes, 'ienākumi');
       await batchInsert(db.recurringExpenses, validRecurring, 'regulārie');
       await batchInsert(db.debts, validDebts, 'parādi');
+      setImportMode(false);
 
       setImportProgress('Sinhronizē ar serveri...');
       try {
@@ -178,6 +185,7 @@ const SettingsView: React.FC<SettingsProps> = ({ onLogout, isDemoMode, userEmail
       setImportProgress(`Veiksmīgi importēti: ${validExpenses.length} izdevumi, ${validIncomes.length} ienākumi`);
       setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
+      setImportMode(false);
       setImportProgress(null);
       const msg = err instanceof Error ? err.message : 'Nezināma kļūda';
       setImportError(`Imports neizdevās. Pārbaudi faila formātu.\n\n${msg}`);
