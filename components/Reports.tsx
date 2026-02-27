@@ -632,7 +632,7 @@ const ReportsView: React.FC = () => {
       >
         <h3 className="text-xs font-black mb-6 uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>Naudas plūsma</h3>
         <div className="h-48 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.04)" />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#4a4a4e', fontWeight: 600 }} />
@@ -678,7 +678,7 @@ const ReportsView: React.FC = () => {
                   <div
                     onClick={() => setViewCategory(item)}
                     className="flex justify-between items-center cursor-pointer p-2 -mx-2 rounded-xl transition-colors"
-                    style={{ }}
+                    style={{}}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-2.5 h-10 rounded-full" style={{ backgroundColor: item.isInvestment ? '#60a5fa' : COLORS[idx % COLORS.length] }} />
@@ -910,7 +910,7 @@ const ReportsView: React.FC = () => {
 
             <div className="overflow-y-auto p-4 space-y-2">
               {detailTransactions.map(t => (
-                <div key={t.id} className="flex justify-between items-start p-3 rounded-xl transition-colors" style={{ }}>
+                <div key={t.id} className="flex justify-between items-start p-3 rounded-xl transition-colors" style={{}}>
                   <div className="pr-4">
                     <div className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{t.note || 'Bez piezīmes'}</div>
                     <div className="text-xs mt-0.5 font-medium" style={{ color: 'var(--text-tertiary)' }}>{formatDateLV(t.date)}</div>

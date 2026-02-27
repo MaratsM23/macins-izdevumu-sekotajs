@@ -65,7 +65,7 @@ const RecurringManager: React.FC = () => {
     e.preventDefault();
     const parsedAmount = parseAmount(amount);
     if (parsedAmount <= 0 || !categoryId) return;
-    const expenseData = { amount: parsedAmount, categoryId, frequency, startDate, note: note.trim() || undefined, isActive: true, updatedAt: Date.now() };
+    const expenseData = { amount: parsedAmount, categoryId, frequency, startDate, note: note.trim() || undefined, isActive: true };
     if (editingId) { await db.recurringExpenses.update(editingId, expenseData); }
     else { await db.recurringExpenses.add({ id: crypto.randomUUID(), createdAt: Date.now(), ...expenseData }); }
     resetForm();
