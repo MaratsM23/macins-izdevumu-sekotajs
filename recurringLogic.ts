@@ -3,17 +3,17 @@ import { supabase } from './supabase';
 import { Frequency, Expense } from './types';
 import { getTodayStr } from './utils';
 
-// Helper to parse YYYY-MM-DD into a local Date object
+// Helper to parse YYYY-MM-DD into a UTC Date object
 function parseLocalDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day);
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
-// Helper to format Date object into YYYY-MM-DD
+// Helper to format Date object into YYYY-MM-DD using UTC
 function formatLocalDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
@@ -30,20 +30,20 @@ function isAlreadyGeneratedForPeriod(
     case 'weekly': {
       // Same Sunday-anchored calendar week as today
       const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay());
-      weekStart.setHours(0, 0, 0, 0);
+      weekStart.setUTCDate(today.getUTCDate() - today.getUTCDay());
+      weekStart.setUTCHours(0, 0, 0, 0);
       const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      weekEnd.setHours(23, 59, 59, 999);
+      weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+      weekEnd.setUTCHours(23, 59, 59, 999);
       return last >= weekStart && last <= weekEnd;
     }
     case 'monthly':
       return (
-        last.getMonth() === today.getMonth() &&
-        last.getFullYear() === today.getFullYear()
+        last.getUTCMonth() === today.getUTCMonth() &&
+        last.getUTCFullYear() === today.getUTCFullYear()
       );
     case 'yearly':
-      return last.getFullYear() === today.getFullYear();
+      return last.getUTCFullYear() === today.getUTCFullYear();
   }
 }
 

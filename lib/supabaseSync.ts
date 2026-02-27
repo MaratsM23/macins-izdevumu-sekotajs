@@ -125,6 +125,9 @@ export async function syncFromSupabase(): Promise<boolean> {
   isSyncRunning = true;
   isSyncing = true;
   try {
+    // 0. Attempt to push offline data first before pulling from Supabase
+    await retrySyncQueue();
+
     // 1. Fetch ALL data from Supabase FIRST — do NOT touch local DB yet
     // Timeout after 10s to prevent infinite loading screen if Supabase hangs
     const timeoutPromise = new Promise<never>((_, reject) =>
@@ -185,9 +188,8 @@ export async function syncFromSupabase(): Promise<boolean> {
     if (debtsRes.data?.length) await db.debts.bulkPut(mapRowsToLocal(debtsRes.data) as any);
 
     // Full sync succeeded — local DB now mirrors Supabase exactly.
-    // Any stale _syncQueue entries are now redundant and can cause
-    // cascade failures on next load, so clear them here.
-    await db.table('_syncQueue').clear();
+    // Note: We deliberately DO NOT await db.table('_syncQueue').clear(); here.
+    // Any items that failed to push in step 0 will remain in the queue to be retried later.
 
     console.log('Sync from Supabase complete');
     return true;
@@ -271,15 +273,11 @@ export async function retrySyncQueue(): Promise<void> {
         // Success — remove from queue
         await db.table('_syncQueue').delete(item.id);
       } catch (err) {
-        // Increment retry count, remove if too many retries
-        if (item.retryCount >= 5) {
-          console.error(`Dropping sync item after 5 retries:`, item);
-          await db.table('_syncQueue').delete(item.id);
-        } else {
-          await db.table('_syncQueue').update(item.id, {
-            retryCount: item.retryCount + 1,
-          });
-        }
+        // Increment retry count. DO NOT delete from queue automatically on failure.
+        console.error(`Sync item retry failed. attempt: ${item.retryCount + 1}`, item);
+        await db.table('_syncQueue').update(item.id, {
+          retryCount: item.retryCount + 1,
+        });
       }
     }
   } catch (err) {
